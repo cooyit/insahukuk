@@ -1,0 +1,17 @@
+{"label":"express-idle-start","rss_mb":63.6,"pss_mb":60.7,"peak_hwm_mb":63.6}
+{"rss": 62.3, "pss": 17.4, "shared_clean": 37.6, "shared_dirty": 20.6, "private": 4.2, "n": 6, "label": "pg-before-api"}
+{"label":"express-after-2000-list","rss_mb":103.2,"pss_mb":100.3,"peak_hwm_mb":103.3}
+{"label":"express-after-+2000-detail","rss_mb":121.2,"pss_mb":118.4,"peak_hwm_mb":122.9}
+{"label":"express-after-10s-c50","rss_mb":129.4,"pss_mb":126.6,"peak_hwm_mb":129.6}
+{"rss": 152.3, "pss": 31.9, "shared_clean": 82.0, "shared_dirty": 59.9, "private": 10.4, "n": 11, "label": "pg-after-api"}
+{"label":"express-idle-10s-after","rss_mb":129.4,"pss_mb":126.6,"peak_hwm_mb":129.6}
+{"rss": 80.1, "pss": 34.1, "shared_clean": 37.9, "shared_dirty": 21.8, "private": 20.3, "n": 6, "label": "pg-after-pgbench-select"}
+{"rss": 470.6, "pss": 90.5, "shared_clean": 81.5, "shared_dirty": 379.6, "private": 9.5, "n": 11, "label": "pg-during-pgbench-5clients"}
+{"label":"directus-idle-after-start","rss_mb":286.1,"pss_mb":261.4,"peak_hwm_mb":343.1}
+{"label":"directus-after-setup+50-items","rss_mb":288.4,"pss_mb":263.6,"peak_hwm_mb":350.1}
+{"label":"directus-after-2000-item-reads","rss_mb":337.1,"pss_mb":312.2,"peak_hwm_mb":350.1}
+{"label":"directus-idle-10s-later","rss_mb":337.1,"pss_mb":312.3,"peak_hwm_mb":350.1}
+{"label":"directus-idle-15s-after-restart","rss_mb":240.8,"pss_mb":216.0,"peak_hwm_mb":327.5}
+{"label":"express-heap64-idle","rss_mb":63.8,"pss_mb":61.3,"peak_hwm_mb":63.8}
+{"label":"express-heap64-after-10s-c50-detail","rss_mb":108.7,"pss_mb":106.1,"peak_hwm_mb":108.7}
+{"rss": 126.4, "pss": 89.5, "shared_clean": 28.6, "shared_dirty": 17.6, "private": 80.1, "n": 6, "label": "pg-after-restart-and-api"}

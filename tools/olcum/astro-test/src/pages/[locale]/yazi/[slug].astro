@@ -1,0 +1,21 @@
+---
+import { Image } from 'astro:assets';
+import Base from '../../../layouts/Base.astro';
+import { articles, cover } from '../../../lib/data';
+export function getStaticPaths() {
+  return ['tr', 'en'].flatMap((locale) => {
+    const list = articles(locale);
+    return list.map((a, i) => ({ params: { locale, slug: a.slug }, props: { a, related: list.slice(i + 1, i + 4).map(({ slug, title }) => ({ slug, title })) } }));
+  });
+}
+const { a, related } = Astro.props;
+---
+<Base title={a.title} locale={a.locale} description={a.excerpt}>
+  <article>
+    <h1>{a.title}</h1><p>{a.author} · <time datetime={a.date}>{new Date(a.date).toLocaleDateString(a.locale)}</time> · {a.area}</p>
+    <Image src={cover(a.cover)} alt={a.title} widths={[480, 960, 1440]} sizes="(max-width: 960px) 100vw, 960px" />
+    <div set:html={a.html} />
+  </article>
+  <aside><h2>İlgili</h2><ul>{related.map((r) => <li><a href={`/${a.locale}/yazi/${r.slug}`}>{r.title}</a></li>)}</ul></aside>
+  <script type="application/ld+json" set:html={JSON.stringify({ '@context': 'https://schema.org', '@type': 'Article', headline: a.title, datePublished: a.date })} />
+</Base>
