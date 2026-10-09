@@ -1,0 +1,9 @@
+node_modules/
+__pycache__/
+.astro/
+dist/
+
+# tools/olcum/gen.mjs çıktıları
+tools/olcum/astro-test/data/
+tools/olcum/astro-test/src/assets/img/
+tools/olcum/astro-test/src/content/

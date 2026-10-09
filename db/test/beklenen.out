@@ -1,0 +1,451 @@
+=== V00 Fikstürler ===
+BEGIN
+INSERT 0 4
+INSERT 0 8
+INSERT 0 5
+INSERT 0 3
+INSERT 0 2
+INSERT 0 1
+INSERT 0 2
+INSERT 0 1
+INSERT 0 1
+INSERT 0 2
+INSERT 0 4
+INSERT 0 7
+INSERT 0 3
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+COMMIT
+ kisi | alan | kullanici | mahkeme 
+------+------+-----------+---------
+    5 |    6 |         3 |       2
+
+
+=== V01 İki seviyeli çalışma alanı ağacı ===
+--- a) 3. seviye (Ceza[3] altına) -> reddedilmeli
+psql:55: ERROR:  insert or update on table "calisma_alani" violates foreign key constraint "calisma_alani_ust_alan_id_ust_seviye_fkey"
+DETAIL:  Key (ust_alan_id, ust_seviye)=(3, 1) is not present in table "calisma_alani".
+--- b) altı olan kök (Kamu hukuku[1]) başka köke bağlanırsa -> reddedilmeli
+psql:57: ERROR:  update or delete on table "calisma_alani" violates foreign key constraint "calisma_alani_ust_alan_id_ust_seviye_fkey" on table "calisma_alani"
+DETAIL:  Key (id, seviye)=(1, 1) is still referenced from table "calisma_alani".
+--- c) yaprak (İmar[4]) diğer köke taşınabilir -> kabul
+BEGIN
+ id | ust_alan_id | seviye 
+----+-------------+--------
+  4 |           2 |      2
+
+UPDATE 1
+ROLLBACK
+--- d) avukata bağlı alan silinirse -> reddedilmeli (NO ACTION; gorunur=false kullanılmalı)
+psql:61: ERROR:  update or delete on table "calisma_alani" violates foreign key constraint "kisi_calisma_alani_calisma_alani_id_fkey" on table "kisi_calisma_alani"
+DETAIL:  Key (id)=(6) is still referenced from table "kisi_calisma_alani".
+--- e) ağaç sorgusu (Türkçe sıralama)
+  ust_alan   |            alt_alanlar             
+-------------+------------------------------------
+ Kamu Hukuku | Ceza Hukuku, İmar Hukuku
+ Özel Hukuk  | Borçlar Hukuku, Gayrimenkul Hukuku
+
+
+=== V02 Yayın: yazarlar, dış yazar, etiket, varsayılan dil çevirisi zorunluluğu ===
+BEGIN
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+COMMIT
+ id |  tur   |  durum  |                       slug                        |         yazarlar          
+----+--------+---------+---------------------------------------------------+---------------------------
+  1 | makale | yayinda | kira-tespit-davalarinda-guncel-yargitay-kararlari | Zeynep Çakır & Ayşe Demir
+
+--- a) TR çevirisi olmadan yayında makale -> COMMIT reddetmeli
+BEGIN
+INSERT 0 1
+psql:92: ERROR:  yayin #2 varsayılan dilde (tr) hazır çeviri olmadan yayında/görünür olamaz
+CONTEXT:  PL/pgSQL function ceviri_zorunlu_kontrol() line 18 at RAISE
+--- b) yalnızca EN çevirili yayında makale -> COMMIT reddetmeli
+BEGIN
+INSERT 0 1
+INSERT 0 1
+psql:97: ERROR:  yayin #3 varsayılan dilde (tr) hazır çeviri olmadan yayında/görünür olamaz
+CONTEXT:  PL/pgSQL function ceviri_zorunlu_kontrol() line 18 at RAISE
+--- c) TR çevirisi var ama hazir=false -> COMMIT reddetmeli
+BEGIN
+INSERT 0 1
+INSERT 0 1
+psql:102: ERROR:  yayin #4 varsayılan dilde (tr) hazır çeviri olmadan yayında/görünür olamaz
+CONTEXT:  PL/pgSQL function ceviri_zorunlu_kontrol() line 18 at RAISE
+--- d) EN taslak (yalnız EN) TASLAK durumda -> kabul (zorunluluk yalnızca yayındakiler için)
+BEGIN
+INSERT 0 1
+INSERT 0 1
+COMMIT
+--- e) yayındaki makalenin TR çevirisini silmek -> COMMIT reddetmeli
+BEGIN
+DELETE 1
+psql:111: ERROR:  yayin #1 varsayılan dilde (tr) hazır çeviri olmadan yayında/görünür olamaz
+CONTEXT:  PL/pgSQL function ceviri_zorunlu_kontrol() line 18 at RAISE
+--- f) aynı yayında iki yazar aynı sira -> reddedilmeli (DEFERRABLE, COMMIT anında)
+BEGIN
+INSERT 0 1
+psql:115: ERROR:  duplicate key value violates unique constraint "yayin_yazar_sira_tekil"
+DETAIL:  Key (yayin_id, sira)=(1, 1) already exists.
+--- g) yazar sırası takası tek işlemde -> kabul
+BEGIN
+UPDATE 2
+COMMIT
+ sira |   yazar    
+------+------------
+    1 | Ayşe Demir
+    2 | 2
+
+--- h) hem kisi_id hem dis_yazar_adi -> reddedilmeli
+psql:122: ERROR:  new row for relation "yayin_yazar" violates check constraint "yayin_yazar_check"
+DETAIL:  Failing row contains (4, 1, 3, X, null, 9).
+--- i) yazarı olduğu yayın varken kisi silinirse -> reddedilmeli (kisi 3: kullanıcı hesabı yok, yalnız yazar bağı)
+BEGIN
+INSERT 0 1
+psql:126: ERROR:  update or delete on table "kisi" violates foreign key constraint "yayin_yazar_kisi_id_fkey" on table "yayin_yazar"
+DETAIL:  Key (id)=(3) is still referenced from table "yayin_yazar".
+ROLLBACK
+--- j) yazar bağı olmayan kisi silinirse: kisi_calisma_alani, telefon, egitim CASCADE (kisi 1 kullanıcıya bağlı -> reddedilmeli)
+psql:129: ERROR:  update or delete on table "kisi" violates foreign key constraint "kullanici_kisi_id_fkey" on table "kullanici"
+DETAIL:  Key (id)=(1) is still referenced from table "kullanici".
+
+=== V03 Yayın türlerine özgü alanlar ===
+--- a) kitap + geçerli ISBN-13 (9780306406157) -> kabul
+BEGIN
+ id |  tur  |     isbn      
+----+-------+---------------
+  6 | kitap | 9780306406157
+
+INSERT 0 1
+ROLLBACK
+--- b) kitap + hatalı ISBN (9780306406158) -> reddedilmeli
+psql:139: ERROR:  new row for relation "yayin" violates check constraint "yayin_isbn_check"
+DETAIL:  Failing row contains (7, kitap, taslak, null, null, null, null, 9780306406158, null, null, null, null, null, null, f, null, 2, null, null, null, <zaman>, <zaman>).
+--- c) ISBN-10 (0306406152) -> kabul
+BEGIN
+    isbn    
+------------
+ 0306406152
+
+INSERT 0 1
+ROLLBACK
+--- d) makaleye ISBN -> reddedilmeli
+psql:143: ERROR:  new row for relation "yayin" violates check constraint "yayin_check2"
+DETAIL:  Failing row contains (9, makale, taslak, null, null, null, null, 9780306406157, null, null, null, null, null, null, f, null, 2, null, null, null, <zaman>, <zaman>).
+--- e) video ama video_url/video_dosya_id yok -> reddedilmeli
+psql:145: ERROR:  new row for relation "yayin" violates check constraint "yayin_check3"
+DETAIL:  Failing row contains (10, video, taslak, null, null, null, null, null, null, null, null, null, null, null, f, null, 2, null, null, null, <zaman>, <zaman>).
+--- f) video + YouTube URL -> kabul
+BEGIN
+ id |  tur  
+----+-------
+ 11 | video
+
+INSERT 0 1
+ROLLBACK
+
+=== V04 Roller, sahiplik, onay ===
+--- a) yazar rolündeki kullanıcı (3) onaylayan olamaz -> reddedilmeli
+psql:153: ERROR:  kullanıcı #3 onay/yayın yetkisine sahip değil
+CONTEXT:  PL/pgSQL function onaylayan_yetki_kontrol() line 7 at RAISE
+--- b) onaysız yayında -> reddedilmeli
+psql:155: ERROR:  new row for relation "yayin" violates check constraint "yayin_check"
+DETAIL:  Failing row contains (13, haber, yayinda, <zaman>, null, null, null, null, null, null, null, null, null, null, f, null, 3, null, null, null, <zaman>, <zaman>).
+--- c) yazar rolü kisi bağı olmadan -> reddedilmeli
+psql:157: ERROR:  new row for relation "kullanici" violates check constraint "kullanici_check1"
+DETAIL:  Failing row contains (4, null, x@insa.av.tr, X, $argon2id$x, yazar, null, t, 0, null, null, <zaman>, <zaman>).
+--- d) yayin_duzenleyebilir_mi: yazar(3) kendi yazdığı yayında(1, yayında) / kendi taslağında / editor(2)
+ yazar_yayindaki_kendi_yazisi | yazar_kendi_taslagi | editor_herhangi 
+------------------------------+---------------------+-----------------
+ f                            | t                   | t
+
+--- e) e-posta büyük harfle -> reddedilmeli (uygulama küçük harfe çevirir)
+psql:163: ERROR:  value for domain eposta violates check constraint "eposta_check"
+
+=== V05 PG16 UNIQUE NULLS NOT DISTINCT ===
+--- a) bulten_sayisi: aynı yıl iki "yıllık" (donem NULL) sayı -> ikincisi reddedilmeli
+BEGIN
+INSERT 0 1
+psql:171: ERROR:  duplicate key value violates unique constraint "bulten_sayisi_yil_donem_key"
+DETAIL:  Key (yil, donem)=(2026, null) already exists.
+ROLLBACK
+--- b) sayfa_ceviri: aynı dilde iki kök (slug NULL) sayfa -> ikincisi reddedilmeli
+BEGIN
+INSERT 0 2
+INSERT 0 1
+psql:177: ERROR:  duplicate key value violates unique constraint "sayfa_ceviri_dil_slug_key"
+DETAIL:  Key (dil, slug)=(tr, null) already exists.
+ROLLBACK
+--- c) mahkeme: kökte ikinci "Yargıtay" -> reddedilmeli
+psql:180: ERROR:  duplicate key value violates unique constraint "mahkeme_ust_mahkeme_id_ad_key"
+DETAIL:  Key (ust_mahkeme_id, ad)=(null, Yargıtay) already exists.
+--- d) mahkeme: daire altına daire (3. seviye) -> reddedilmeli
+psql:182: ERROR:  insert or update on table "mahkeme" violates foreign key constraint "mahkeme_ust_mahkeme_id_ust_seviye_fkey"
+DETAIL:  Key (ust_mahkeme_id, ust_seviye)=(2, 1) is not present in table "mahkeme".
+
+=== V06 Karar modülü ===
+BEGIN
+INSERT 0 1
+INSERT 0 2
+INSERT 0 1
+INSERT 0 1
+COMMIT
+--- a) aynı karar-kanun "bütünü" (madde NULL) ikinci kez -> reddedilmeli
+psql:197: ERROR:  duplicate key value violates unique constraint "karar_mevzuat_karar_id_mevzuat_id_madde_key"
+DETAIL:  Key (karar_id, mevzuat_id, madde)=(1, 1, null) already exists.
+--- b) anonimleştirilmeden yayına alma -> reddedilmeli
+psql:199: ERROR:  new row for relation "karar" violates check constraint "karar_check"
+DETAIL:  Failing row contains (1, 2, 2023/4567, 2024/1234, 2024-03-12, yargitay-3-hd-2024-1234, Kira bedelinin tespiti, Kiracının tahliyesi ve kira bedelinin tespitine ilişkin karar..., Davacı kiraya veren, davalı kiracı aleyhine ..., null, f, f, ozel, null, null, yayinda, <zaman>, 3, null, 2, <zaman>, <zaman>, <zaman>, 'aleyh':17C 'bedel':2A,8B 'daval':15C 'davaç':12C 'ilişk':10B ...).
+--- c) anonimleştirildi + onay -> kabul
+ id |  durum  | anonimlestirildi 
+----+---------+------------------
+  1 | yayinda | t
+
+UPDATE 1
+--- d) esas no biçimi hatalı (2023-4567) -> reddedilmeli
+psql:205: ERROR:  new row for relation "karar" violates check constraint "karar_esas_no_check"
+DETAIL:  Failing row contains (2, 2, 2023-4567, null, 2024-01-01, x, x, null, null, null, f, f, ozel, null, null, taslak, null, 1, null, null, null, <zaman>, <zaman>, 'x':1A).
+--- e) Türkçe tam metin arama: "kiracı" -> kira kökü eşleşir; mahkeme/mevzuat ile listeleme
+ id |          mahkeme          |  esas_no  | karar_no  | karar_tarihi |    skor    |    mevzuat     
+----+---------------------------+-----------+-----------+--------------+------------+----------------
+  1 | Yargıtay 3. Hukuk Dairesi | 2023/4567 | 2024/1234 | 2024-03-12   | 0.82741255 | TBK, TBK m.344
+
+SET
+                     QUERY PLAN                     
+----------------------------------------------------
+ Bitmap Heap Scan on karar
+   Recheck Cond: (arama @@ '''kira'''::tsquery)
+   ->  Bitmap Index Scan on karar_arama_idx
+         Index Cond: (arama @@ '''kira'''::tsquery)
+
+RESET
+
+=== V07 İletişim mesajı, başvuru, KVKK saklama ===
+INSERT 0 1
+INSERT 0 1
+--- a) cevaplandi ama cevaplayan yok -> reddedilmeli
+psql:226: ERROR:  new row for relation "iletisim_mesaji" violates check constraint "iletisim_mesaji_check1"
+DETAIL:  Failing row contains (1, Ziyaretçi, ziyaretci@example.com, +905551112233, randevu, Randevu talebi, cevaplandi, null, null, aydinlatma-2026-10, null, <zaman>, <zaman>).
+--- b) telefon E.164 değil -> reddedilmeli
+psql:228: ERROR:  value for domain telefon violates check constraint "telefon_check"
+--- c) CV olarak genel (statik siteye kopyalanan) dosya -> reddedilmeli
+INSERT 0 2
+psql:233: ERROR:  insert or update on table "basvuru" violates foreign key constraint "basvuru_cv_dosya_id_cv_erisim_fkey"
+DETAIL:  Key (cv_dosya_id, cv_erisim)=(<uuid>, ozel) is not present in table "dosya".
+--- d) CV ozel dosya, süresi geçmiş başvuru -> kabul
+ id | cv_erisim 
+----+-----------
+  2 | ozel
+
+INSERT 0 1
+INSERT 0 1
+--- e) oturum süresi 24 saatten uzun -> reddedilmeli
+psql:241: ERROR:  new row for relation "oturum" violates check constraint "oturum_check"
+DETAIL:  Failing row contains (\xc44474038d459e40e4714afefa7bf8dae9f9834b22f5e8ec1dd434ecb62b51..., 1, <zaman>, <zaman>, null, null).
+--- f) kisisel_veri_temizle()
+       tablo        | silinen 
+--------------------+---------
+ oturum             |       1
+ iletisim_mesaji    |       1
+ basvuru_cv_dosyasi |       1
+ degisiklik_log     |       0
+
+ depolama_anahtari | eklenme_zamani_var 
+-------------------+--------------------
+ ozel/cv.pdf       | t
+
+ kalan_mesaj 
+-------------
+           1
+
+
+=== V08 Açılır duyuru, yönlendirme, derleme kuyruğu ===
+BEGIN
+INSERT 0 1
+INSERT 0 1
+COMMIT
+--- a) çakışan ikinci aktif pop-up -> reddedilmeli (EXCLUDE)
+psql:255: ERROR:  conflicting key value violates exclusion constraint "acilir_duyuru_tstzrange_excl"
+DETAIL:  Key (tstzrange(baslangic, bitis))=(["<zaman>","<zaman>")) conflicts with existing key (tstzrange(baslangic, bitis))=(["<zaman>","<zaman>")).
+--- b) çakışan ama pasif -> kabul
+BEGIN
+ id | aktif 
+----+-------
+  3 | f
+
+INSERT 0 1
+COMMIT
+--- c) //evil açık yönlendirme -> reddedilmeli
+psql:261: ERROR:  new row for relation "yonlendirme" violates check constraint "yonlendirme_hedef_check"
+DETAIL:  Failing row contains (1, /eski, //evil.example/phish, 301, <zaman>).
+--- d) zincir /a -> /b, sonra /b -> /c -> ikincisi reddedilmeli
+INSERT 0 1
+psql:264: ERROR:  yönlendirme zinciri/döngüsü: /b -> /c
+CONTEXT:  PL/pgSQL function yonlendirme_zincir_kontrol() line 6 at RAISE
+--- e) iki derleme aynı anda calisiyor -> ikincisi reddedilmeli
+INSERT 0 1
+psql:267: ERROR:  duplicate key value violates unique constraint "derleme_isi_tek_calisan"
+DETAIL:  Key ((true))=(t) already exists.
+
+=== V09 Dil tablosu ===
+--- a) varsayılan dili kaldırmak -> COMMIT reddetmeli
+BEGIN
+UPDATE 1
+psql:273: ERROR:  tam olarak bir varsayılan dil olmalı
+CONTEXT:  PL/pgSQL function dil_varsayilan_kontrol() line 6 at RAISE
+--- b) varsayılanı tr -> en taşımak tek işlemde -> (en çevirisi olmayan yayındaki makale yüzünden) reddedilmeli
+BEGIN
+UPDATE 1
+UPDATE 1
+UPDATE 1
+psql:276: ERROR:  varsayılan dil (en) değişikliği reddedildi: yayin #1 bu dilde çevirisiz
+CONTEXT:  PL/pgSQL function dil_varsayilan_kontrol() line 10 at RAISE
+--- c) varsayılanı tr -> en taşımak, içerik satırına DOKUNMADAN -> yine reddedilmeli (ceviri_eksikleri)
+BEGIN
+UPDATE 1
+UPDATE 1
+psql:278: ERROR:  varsayılan dil (en) değişikliği reddedildi: yayin #1 bu dilde çevirisiz
+CONTEXT:  PL/pgSQL function dil_varsayilan_kontrol() line 10 at RAISE
+--- d) ceviri_eksikleri(): mevcut veride eksik (beklenen: boş)
+ ana | ana_id 
+-----+--------
+
+
+=== V10 guncelleme_zamani: çeviri değişince ana kayıt ilerliyor mu? ===
+SELECT 1
+ pg_sleep 
+----------
+ 
+
+UPDATE 1
+ ana_kayit_ilerledi 
+--------------------
+ t
+
+--- kapsama: guncelleme_zamani olup tetikleyicisi olmayan tablo var mı?
+ eksik_tetikleyici 
+-------------------
+
+ guncelleme_tetikleyici | ceviri_ust_tetikleyici | ceviri_zorunlu_tetikleyici 
+------------------------+------------------------+----------------------------
+                     19 |                     12 |                         22
+
+
+=== V11 Ekip sayfası sorgusu: unvan sırası + Türkçe ad sıralaması + EN için TR yedekli unvan ===
+   ad_soyad   | unvan_en_yedekli  | unvan_sira | siralama |       roller       | sitede_telefon 
+--------------+-------------------+------------+----------+--------------------+----------------
+ Mehmet İnşa  | EN kurucu-ortak   |          1 |        1 | Avukat / Arabulucu | 201
+ İlker Şahin  | EN avukat         |          3 |        0 | Arabulucu          | 
+ Zeynep Çakır | EN avukat         |          3 |        1 | Avukat             | 
+ Ali Öztürk   | EN avukat         |          3 |        2 | Avukat             | 
+ Can Yılmaz   | EN stajyer-avukat |          4 |        0 |                    | 
+
+--- soyad sıralaması: tr_metin (tr-x-icu) ve C karşılaştırması
+          tr_metin_sirasi           |              c_sirasi              
+------------------------------------+------------------------------------
+ Çakır, İnşa, Öztürk, Şahin, Yılmaz | Yılmaz, Çakır, Öztürk, İnşa, Şahin
+
+
+=== V12 İndekssiz FK sütunları (bilinçli bırakılanlar: dosya ve kullanıcı denetim FKleri) ===
+        tablo         |              fk_sutun               |   hedef   
+----------------------+-------------------------------------+-----------
+ acilir_duyuru_ceviri | dil                                 | dil
+ deneyim_ceviri       | dil                                 | dil
+ dosya_ceviri         | dil                                 | dil
+ egitim_ceviri        | dil                                 | dil
+ ilan_ceviri          | dil                                 | dil
+ kisi_ceviri          | dil                                 | dil
+ unvan_ceviri         | dil                                 | dil
+ acilir_duyuru        | gorsel_dosya_id                     | dosya
+ bulten_sayisi        | kapak_dosya_id                      | dosya
+ bulten_sayisi        | pdf_dosya_id                        | dosya
+ calisma_alani        | gorsel_dosya_id                     | dosya
+ firma                | logo_dosya_id                       | dosya
+ karar                | tam_metin_dosya_id                  | dosya
+ karar                | tam_metin_dosya_id,tam_metin_erisim | dosya
+ kisi                 | foto_dosya_id                       | dosya
+ sayfa_ceviri         | og_dosya_id                         | dosya
+ yayin                | kapak_dosya_id                      | dosya
+ yayin                | video_dosya_id                      | dosya
+ yayin_ceviri         | og_dosya_id                         | dosya
+ iletisim_mesaji      | cevaplayan_kisi_id                  | kisi
+ karar_yorum          | kisi_id                             | kisi
+ degisiklik_log       | kullanici_id                        | kullanici
+ derleme_isi          | isteyen_id                          | kullanici
+ dosya                | yukleyen_id                         | kullanici
+ karar                | anonimlestiren_id                   | kullanici
+ karar                | guncelleyen_id                      | kullanici
+ karar                | olusturan_id                        | kullanici
+ karar                | onaylayan_id                        | kullanici
+ site_ayar            | guncelleyen_id                      | kullanici
+ yayin                | guncelleyen_id                      | kullanici
+ yayin                | onaylayan_id                        | kullanici
+
+
+=== V13 slug_tr() ===
+                    girdi                    |                  slug                   | domain_gecerli 
+---------------------------------------------+-----------------------------------------+----------------
+ Şirketler & Gayrimenkul Hukuku — İmar/Çevre | sirketler-gayrimenkul-hukuku-imar-cevre | t
+ IĞDIR ÜNİVERSİTESİ                          | igdir-universitesi                      | t
+   --Kâr Payı--                              | kar-payi                                | t
+ Ağır Ceza                                   | agir-ceza                               | t
+
+
+=== V14 Doğrulama turunda düzeltilenler ===
+--- a) e-postada ASCII dışı yerel kısım (ınfo@, İnfo@) -> ikisi de reddedilmeli
+psql:338: ERROR:  value for domain eposta violates check constraint "eposta_check"
+psql:339: ERROR:  value for domain eposta violates check constraint "eposta_check"
+--- b) slug_tr: JS toLowerCase(İ) çıktısı (i + U+0307) ve ayrışık (NFD) girdi -> idare-hukuku / sirket-imar
+  js_kucuk_i  |     nfd     
+--------------+-------------
+ idare-hukuku | sirket-imar
+
+--- c) anonimleştirilmemiş karar genel dosyaya bağlanırsa -> reddedilmeli; özel dosyaya -> kabul
+BEGIN
+INSERT 0 2
+SAVEPOINT
+psql:349: ERROR:  insert or update on table "karar" violates foreign key constraint "karar_tam_metin_dosya_id_tam_metin_erisim_fkey"
+DETAIL:  Key (tam_metin_dosya_id, tam_metin_erisim)=(<uuid>, ozel) is not present in table "dosya".
+ROLLBACK
+   slug   | tam_metin_erisim 
+----------+------------------
+ v14-ozel | ozel
+
+INSERT 0 1
+ROLLBACK
+--- d) başvuru elle silinince (KVKK silme talebi) CV dosyası silinip kuyruğa yazılmalı
+BEGIN
+INSERT 0 1
+INSERT 0 1
+DELETE 1
+ dosya_kaldi | kuyrukta 
+-------------+----------
+           0 |        1
+
+ROLLBACK
+--- e) yönlendirme hedefi "/" + ters bölü + "evil" ya da "/" + sekme + "/evil" -> ikisi de reddedilmeli (tarayıcı ikisini de //evil sayar)
+psql:366: ERROR:  new row for relation "yonlendirme" violates check constraint "yonlendirme_hedef_check"
+DETAIL:  Failing row contains (4, /v14-a, /\evil.example, 301, <zaman>).
+psql:367: ERROR:  new row for relation "yonlendirme" violates check constraint "yonlendirme_hedef_check"
+DETAIL:  Failing row contains (5, /v14-b, /	/evil.example, 301, <zaman>).
+--- f) ISBN-13 yalnızca 978/979 önekli: 0000000000000 -> f, 9780306406157 -> t
+ sifirlar | gecerli 
+----------+---------
+ f        | t
+
+--- g) varsayılan dili tek ifadeyle değiştirip geri almak (tek-varsayılan kısıtı ertelenmiş) -> kabul
+BEGIN
+UPDATE 2
+UPDATE 2
+COMMIT
+ varsayilan_dil 
+----------------
+ tr
