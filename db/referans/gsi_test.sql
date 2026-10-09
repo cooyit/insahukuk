@@ -1,6 +1,6 @@
 -- =====================================================================
 --  gsi_schema.sql için sonda testleri (PostgreSQL 16)
---  Çalıştırma: psql -X -d gsi_test -f gsi_tests.sql 2>&1
+--  Çalıştırma: psql -X -d gsi_test -f db/referans/gsi_test.sql 2>&1
 --  ON_ERROR_STOP kapalı: hata beklenen testlerde hata mesajı çıktıda görünür.
 --  Her test ROLLBACK ile biter; yalnızca F0 fikstürleri kalıcıdır.
 -- =====================================================================

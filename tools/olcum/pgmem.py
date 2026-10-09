@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
 """PostgreSQL kümesinin gerçek bellek kullanımı: tüm süreçlerin RSS ve PSS toplamı.
 RSS toplamı shared_buffers'ı her süreçte yeniden sayar; fiziksel kullanım için PSS'e bakın.
-usage: pgmem.py ETIKET [-v]   (PGDATA_MARK: postmaster komut satırında aranacak veri dizini parçası)
+usage: [PGDATA_MARK=/veri/dizini] pgmem.py ETIKET [-v]   (birden çok küme varsa PGDATA_MARK zorunlu)
 """
 import os, sys, json
 label = sys.argv[1] if len(sys.argv) > 1 else 'pg'
 tot = dict(rss=0, pss=0, shared_clean=0, shared_dirty=0, private=0, n=0)
 procs = []
-MARK = os.environ.get('PGDATA_MARK', '/postgresql/')
-pm = None
+# Birden çok küme çalışıyorsa PGDATA_MARK zorunlu; tek aday bulunmazsa adayları listeleyip çıkar.
+MARK = os.environ.get('PGDATA_MARK', '')
+adaylar = []
 for d in os.listdir('/proc'):
     if d.isdigit():
         try:
-            c = open(f'/proc/{d}/cmdline','rb').read().decode(errors='ignore')
-            if c.startswith('/usr/lib/postgresql') and MARK in c: pm = d
+            a = open(f'/proc/{d}/cmdline','rb').read().split(b'\0')
+            if os.path.basename(a[0]) == b'postgres' and b'-D' in a and b'--single' not in a \
+               and MARK.encode() in b' '.join(a): adaylar.append((d, b' '.join(a).decode(errors='ignore')))
         except Exception: pass
+if len(adaylar) != 1:
+    print(f'{len(adaylar)} postmaster bulundu; PGDATA_MARK ile veri dizinini belirtin:', file=sys.stderr)
+    [print('  ', d, c[:100], file=sys.stderr) for d, c in adaylar]
+    sys.exit(2)
+pm = adaylar[0][0]
 def ppid(d):
     s = open(f'/proc/{d}/stat').read(); return s[s.rfind(')')+2:].split()[1]
 for d in os.listdir('/proc'):

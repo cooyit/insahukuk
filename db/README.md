@@ -7,9 +7,9 @@
 - **Adlandırma:** Türkçe, yalnızca ASCII, snake_case, tekil tablo adı (`kisi`, `yayin`, `karar`). Tanımlayıcılarda Türkçe karakter yok.
 - **Çok dillilik:** dile bağlı metin `<tablo>_ceviri` tablosunda, PK `(<tablo>_id, dil)`. Dil bağımsız alanlar ana tabloda.
   Yayında/görünür her kaydın varsayılan dilde (`tr`) çevirisi olması COMMIT anında zorunlu (`ceviri_kurali` tablosu + ertelenmiş kısıt tetikleyicileri). Karar modülü yalnızca Türkçe.
-- **Metin:** ad/başlık sütunları `tr_metin` domain'i (`COLLATE "tr-x-icu"`); veritabanı hangi yerelle kurulursa kurulsun Türkçe sıralar. E-posta küçük harf ASCII saklanır, çünkü `tr_TR` yerelinde `lower('I')` = `ı` olur.
+- **Metin:** ad/başlık sütunları `tr_metin` domain'i (`COLLATE "tr-x-icu"`); veritabanı hangi yerelle kurulursa kurulsun Türkçe sıralar. `eposta` domain'i yalnızca küçük harfli, boşluksuz ASCII kabul eder (`ınfo@`, `İnfo@`, `INFO@` reddedilir), çünkü `tr_TR` yerelinde `lower('I')` = `ı` olur; uygulama e-postayı yerelden bağımsız `toLowerCase()` ile normalleştirmeli. `slug_tr()` Unicode ayrıştırması (NFD) kullanır; JS'in `'İ'.toLowerCase()` çıktısı da `i` olur.
 - **Silme:** ara tablolar sahibinden CASCADE; sözlük ve dosya tarafı NO ACTION (kullanımdaki çalışma alanı, etiket, dosya silinemez). `kisi` ve `kullanici` silinmez, `aktif = false` yapılır.
-- **KVKK:** IP yalnızca HMAC olarak (`ip_hmac`); `iletisim_mesaji` ve `basvuru` için `saklama_bitis` + `kisisel_veri_temizle()` (günlük systemd timer ile çağrılmalı). CV dosyası yalnızca `ozel` erişimli olabilir.
+- **KVKK:** IP yalnızca HMAC olarak (`ip_hmac`); `iletisim_mesaji` ve `basvuru` için `saklama_bitis` + `kisisel_veri_temizle()` (günlük systemd timer ile çağrılmalı). CV dosyası ve anonimleştirilmemiş kararın dosyası yalnızca `ozel` erişimli olabilir (statik siteye kopyalanmaz). Başvuru silinince ya da CV değişince eski CV, başka başvuruda kullanılmıyorsa `basvuru_cv_birak` tetikleyicisiyle silinip `dosya_silme_kuyrugu`'na yazılır.
 
 ## Bölümler
 
@@ -42,7 +42,7 @@ DATABASE_URL=postgres://user@host/bos_db db/test/calistir.sh   # var olan boş b
 db/test/calistir.sh --guncelle                        # test bilerek değiştiyse beklenen çıktıyı yenile
 ```
 
-`schema_test.sql`'deki her `ERROR` satırı bilinçli bir negatif testtir (şu an 36 adet); betik çıktıyı zaman damgası, uuid ve dosya yolundan arındırıp `beklenen.out` ile karşılaştırır. Geçici küme için `initdb` ve `pg_ctl` gerekir ve betik root ile çalışmaz.
+`schema_test.sql` çıktısındaki (`beklenen.out`) her `ERROR` satırı bilinçli bir negatif testtir (şu an 41 adet); betik çıktıyı zaman damgası, uuid ve dosya yolundan arındırıp `beklenen.out` ile karşılaştırır. Geçici küme için `initdb` ve `pg_ctl` gerekir ve betik root ile çalışmaz.
 
 Migration'larda yeni bir tablo eklenirse `SELECT guncelleme_tetikleyicisi_ekle('tablo_adi');` çağrılmalı. CI'da şu iki sorgu boş dönmeli: `guncelleme_zamani` sütunu olup tetikleyicisi olmayan tablolar (bkz. testte V10) ve `SELECT * FROM ceviri_eksikleri();`.
 
@@ -52,4 +52,6 @@ Karşılaştırma için: GSI sitesinden çıkarılmış ilk şema (`gsi_schema.s
 
 ```bash
 createdb gsi_test && psql -X -d gsi_test -f db/referans/gsi_schema.sql && psql -X -d gsi_test -f db/referans/gsi_test.sql
+# Türkçe yerel testi (bulgu 3) ayrı, tr-TR ICU yerelli bir veritabanı ister
+createdb -T template0 --locale-provider=icu --icu-locale=tr-TR --locale=C gsi_tr && psql -X -d gsi_tr -f db/referans/gsi_schema.sql && psql -X -d gsi_tr -f db/referans/gsi_tr_test.sql
 ```

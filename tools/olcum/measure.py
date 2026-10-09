@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run a command, poll its whole process tree every 100 ms and report
 peak tree RSS / PSS, ru_maxrss of children (like /usr/bin/time -v) and CPU time.
-usage: measure.py ETIKET -- komut argumanlar...  (sonuç: sonuclar/derleme.jsonl)
+usage: measure.py ETIKET -- komut argumanlar...  (sonuç: sonuclar/derleme.jsonl ya da $OLCUM_CIKTI)
 """
 import os, sys, time, subprocess, resource, json
 
@@ -57,8 +57,9 @@ res = dict(label=label, exit=p.returncode, wall_s=round(wall, 1),
            user_cpu_s=round(ru.ru_utime, 1), sys_cpu_s=round(ru.ru_stime, 1),
            avg_cpu_cores=round((ru.ru_utime + ru.ru_stime) / wall, 2), samples=samples)
 print('MEASURE ' + json.dumps(res), file=sys.stderr)
-out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sonuclar')
-os.makedirs(out_dir, exist_ok=True)
-with open(os.path.join(out_dir, 'derleme.jsonl'), 'a') as f:
+# OLCUM_CIKTI ile başka dosyaya yazılabilir (depodaki ham sonuçlar değişmesin)
+out_file = os.environ.get('OLCUM_CIKTI') or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sonuclar', 'derleme.jsonl')
+os.makedirs(os.path.dirname(os.path.abspath(out_file)), exist_ok=True)
+with open(out_file, 'a') as f:
     f.write(json.dumps(res) + '\n')
 sys.exit(p.returncode)

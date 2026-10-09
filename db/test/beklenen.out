@@ -203,7 +203,7 @@ psql:197: ERROR:  duplicate key value violates unique constraint "karar_mevzuat_
 DETAIL:  Key (karar_id, mevzuat_id, madde)=(1, 1, null) already exists.
 --- b) anonimleştirilmeden yayına alma -> reddedilmeli
 psql:199: ERROR:  new row for relation "karar" violates check constraint "karar_check"
-DETAIL:  Failing row contains (1, 2, 2023/4567, 2024/1234, 2024-03-12, yargitay-3-hd-2024-1234, Kira bedelinin tespiti, Kiracının tahliyesi ve kira bedelinin tespitine ilişkin karar..., Davacı kiraya veren, davalı kiracı aleyhine ..., null, f, f, null, null, yayinda, <zaman>, 3, null, 2, <zaman>, <zaman>, <zaman>, 'aleyh':17C 'bedel':2A,8B 'daval':15C 'davaç':12C 'ilişk':10B ...).
+DETAIL:  Failing row contains (1, 2, 2023/4567, 2024/1234, 2024-03-12, yargitay-3-hd-2024-1234, Kira bedelinin tespiti, Kiracının tahliyesi ve kira bedelinin tespitine ilişkin karar..., Davacı kiraya veren, davalı kiracı aleyhine ..., null, f, f, ozel, null, null, yayinda, <zaman>, 3, null, 2, <zaman>, <zaman>, <zaman>, 'aleyh':17C 'bedel':2A,8B 'daval':15C 'davaç':12C 'ilişk':10B ...).
 --- c) anonimleştirildi + onay -> kabul
  id |  durum  | anonimlestirildi 
 ----+---------+------------------
@@ -212,7 +212,7 @@ DETAIL:  Failing row contains (1, 2, 2023/4567, 2024/1234, 2024-03-12, yargitay-
 UPDATE 1
 --- d) esas no biçimi hatalı (2023-4567) -> reddedilmeli
 psql:205: ERROR:  new row for relation "karar" violates check constraint "karar_esas_no_check"
-DETAIL:  Failing row contains (2, 2, 2023-4567, null, 2024-01-01, x, x, null, null, null, f, f, null, null, taslak, null, 1, null, null, null, <zaman>, <zaman>, 'x':1A).
+DETAIL:  Failing row contains (2, 2, 2023-4567, null, 2024-01-01, x, x, null, null, null, f, f, ozel, null, null, taslak, null, 1, null, null, null, <zaman>, <zaman>, 'x':1A).
 --- e) Türkçe tam metin arama: "kiracı" -> kira kökü eşleşir; mahkeme/mevzuat ile listeleme
  id |          mahkeme          |  esas_no  | karar_no  | karar_tarihi |    skor    |    mevzuat     
 ----+---------------------------+-----------+-----------+--------------+------------+----------------
@@ -258,9 +258,9 @@ DETAIL:  Failing row contains (\xc44474038d459e40e4714afefa7bf8dae9f9834b22f5e8e
  basvuru_cv_dosyasi |       1
  degisiklik_log     |       0
 
- depolama_anahtari |        eklenme_zamani         
--------------------+-------------------------------
- ozel/cv.pdf       | <zaman>
+ depolama_anahtari | eklenme_zamani_var 
+-------------------+--------------------
+ ozel/cv.pdf       | t
 
  kalan_mesaj 
 -------------
@@ -289,7 +289,7 @@ DETAIL:  Failing row contains (1, /eski, //evil.example/phish, 301, <zaman>).
 --- d) zincir /a -> /b, sonra /b -> /c -> ikincisi reddedilmeli
 INSERT 0 1
 psql:264: ERROR:  yönlendirme zinciri/döngüsü: /b -> /c
-CONTEXT:  PL/pgSQL function yonlendirme_zincir_kontrol() line 5 at RAISE
+CONTEXT:  PL/pgSQL function yonlendirme_zincir_kontrol() line 6 at RAISE
 --- e) iki derleme aynı anda calisiyor -> ikincisi reddedilmeli
 INSERT 0 1
 psql:267: ERROR:  duplicate key value violates unique constraint "derleme_isi_tek_calisan"
@@ -355,38 +355,39 @@ UPDATE 1
 
 
 === V12 İndekssiz FK sütunları (bilinçli bırakılanlar: dosya ve kullanıcı denetim FKleri) ===
-        tablo         |      fk_sutun      |   hedef   
-----------------------+--------------------+-----------
- acilir_duyuru_ceviri | dil                | dil
- deneyim_ceviri       | dil                | dil
- dosya_ceviri         | dil                | dil
- egitim_ceviri        | dil                | dil
- ilan_ceviri          | dil                | dil
- kisi_ceviri          | dil                | dil
- unvan_ceviri         | dil                | dil
- acilir_duyuru        | gorsel_dosya_id    | dosya
- bulten_sayisi        | kapak_dosya_id     | dosya
- bulten_sayisi        | pdf_dosya_id       | dosya
- calisma_alani        | gorsel_dosya_id    | dosya
- firma                | logo_dosya_id      | dosya
- karar                | tam_metin_dosya_id | dosya
- kisi                 | foto_dosya_id      | dosya
- sayfa_ceviri         | og_dosya_id        | dosya
- yayin                | video_dosya_id     | dosya
- yayin                | kapak_dosya_id     | dosya
- yayin_ceviri         | og_dosya_id        | dosya
- iletisim_mesaji      | cevaplayan_kisi_id | kisi
- karar_yorum          | kisi_id            | kisi
- degisiklik_log       | kullanici_id       | kullanici
- derleme_isi          | isteyen_id         | kullanici
- dosya                | yukleyen_id        | kullanici
- karar                | olusturan_id       | kullanici
- karar                | anonimlestiren_id  | kullanici
- karar                | onaylayan_id       | kullanici
- karar                | guncelleyen_id     | kullanici
- site_ayar            | guncelleyen_id     | kullanici
- yayin                | guncelleyen_id     | kullanici
- yayin                | onaylayan_id       | kullanici
+        tablo         |              fk_sutun               |   hedef   
+----------------------+-------------------------------------+-----------
+ acilir_duyuru_ceviri | dil                                 | dil
+ deneyim_ceviri       | dil                                 | dil
+ dosya_ceviri         | dil                                 | dil
+ egitim_ceviri        | dil                                 | dil
+ ilan_ceviri          | dil                                 | dil
+ kisi_ceviri          | dil                                 | dil
+ unvan_ceviri         | dil                                 | dil
+ acilir_duyuru        | gorsel_dosya_id                     | dosya
+ bulten_sayisi        | kapak_dosya_id                      | dosya
+ bulten_sayisi        | pdf_dosya_id                        | dosya
+ calisma_alani        | gorsel_dosya_id                     | dosya
+ firma                | logo_dosya_id                       | dosya
+ karar                | tam_metin_dosya_id                  | dosya
+ karar                | tam_metin_dosya_id,tam_metin_erisim | dosya
+ kisi                 | foto_dosya_id                       | dosya
+ sayfa_ceviri         | og_dosya_id                         | dosya
+ yayin                | kapak_dosya_id                      | dosya
+ yayin                | video_dosya_id                      | dosya
+ yayin_ceviri         | og_dosya_id                         | dosya
+ iletisim_mesaji      | cevaplayan_kisi_id                  | kisi
+ karar_yorum          | kisi_id                             | kisi
+ degisiklik_log       | kullanici_id                        | kullanici
+ derleme_isi          | isteyen_id                          | kullanici
+ dosya                | yukleyen_id                         | kullanici
+ karar                | anonimlestiren_id                   | kullanici
+ karar                | guncelleyen_id                      | kullanici
+ karar                | olusturan_id                        | kullanici
+ karar                | onaylayan_id                        | kullanici
+ site_ayar            | guncelleyen_id                      | kullanici
+ yayin                | guncelleyen_id                      | kullanici
+ yayin                | onaylayan_id                        | kullanici
 
 
 === V13 slug_tr() ===
@@ -396,3 +397,55 @@ UPDATE 1
  IĞDIR ÜNİVERSİTESİ                          | igdir-universitesi                      | t
    --Kâr Payı--                              | kar-payi                                | t
  Ağır Ceza                                   | agir-ceza                               | t
+
+
+=== V14 Doğrulama turunda düzeltilenler ===
+--- a) e-postada ASCII dışı yerel kısım (ınfo@, İnfo@) -> ikisi de reddedilmeli
+psql:338: ERROR:  value for domain eposta violates check constraint "eposta_check"
+psql:339: ERROR:  value for domain eposta violates check constraint "eposta_check"
+--- b) slug_tr: JS toLowerCase(İ) çıktısı (i + U+0307) ve ayrışık (NFD) girdi -> idare-hukuku / sirket-imar
+  js_kucuk_i  |     nfd     
+--------------+-------------
+ idare-hukuku | sirket-imar
+
+--- c) anonimleştirilmemiş karar genel dosyaya bağlanırsa -> reddedilmeli; özel dosyaya -> kabul
+BEGIN
+INSERT 0 2
+SAVEPOINT
+psql:349: ERROR:  insert or update on table "karar" violates foreign key constraint "karar_tam_metin_dosya_id_tam_metin_erisim_fkey"
+DETAIL:  Key (tam_metin_dosya_id, tam_metin_erisim)=(<uuid>, ozel) is not present in table "dosya".
+ROLLBACK
+   slug   | tam_metin_erisim 
+----------+------------------
+ v14-ozel | ozel
+
+INSERT 0 1
+ROLLBACK
+--- d) başvuru elle silinince (KVKK silme talebi) CV dosyası silinip kuyruğa yazılmalı
+BEGIN
+INSERT 0 1
+INSERT 0 1
+DELETE 1
+ dosya_kaldi | kuyrukta 
+-------------+----------
+           0 |        1
+
+ROLLBACK
+--- e) yönlendirme hedefi "/" + ters bölü + "evil" ya da "/" + sekme + "/evil" -> ikisi de reddedilmeli (tarayıcı ikisini de //evil sayar)
+psql:366: ERROR:  new row for relation "yonlendirme" violates check constraint "yonlendirme_hedef_check"
+DETAIL:  Failing row contains (4, /v14-a, /\evil.example, 301, <zaman>).
+psql:367: ERROR:  new row for relation "yonlendirme" violates check constraint "yonlendirme_hedef_check"
+DETAIL:  Failing row contains (5, /v14-b, /	/evil.example, 301, <zaman>).
+--- f) ISBN-13 yalnızca 978/979 önekli: 0000000000000 -> f, 9780306406157 -> t
+ sifirlar | gecerli 
+----------+---------
+ f        | t
+
+--- g) varsayılan dili tek ifadeyle değiştirip geri almak (tek-varsayılan kısıtı ertelenmiş) -> kabul
+BEGIN
+UPDATE 2
+UPDATE 2
+COMMIT
+ varsayilan_dil 
+----------------
+ tr

@@ -50,7 +50,7 @@ CREATE DOMAIN tr_metin AS text COLLATE "tr-x-icu";
 
 -- E-posta: uygulama trim + toLowerCase() (yerel bağımsız) uygular; DB büyük harfi reddeder.
 CREATE DOMAIN eposta AS text
-  CHECK (VALUE !~ '[A-Z\s]' AND VALUE ~ '^[^@]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$' AND length(VALUE) <= 254);
+  CHECK (VALUE ~ '^[!-~]+$' AND VALUE !~ '[A-Z]' AND VALUE ~ '^[^@]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$' AND length(VALUE) <= 254);
 
 -- E.164 telefon (+905321234567). Görüntü biçimlendirmesi ön yüzde yapılır.
 CREATE DOMAIN telefon AS text CHECK (VALUE ~ '^\+[1-9][0-9]{7,14}$');
@@ -64,7 +64,8 @@ CREATE FUNCTION slug_tr(girdi text) RETURNS text
 LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
   SELECT NULLIF(trim(BOTH '-' FROM left(
            regexp_replace(
-             lower(translate(girdi, 'ÇĞİIÖŞÜÂÎÛçğıöşüâîû', 'cgiiosuaiucgiosuaiu') COLLATE "C"),
+             -- NFD + birleşik işaretleri at: ş, é, ñ ve JS toLowerCase('İ') = 'i̇' (i+U+0307) de çözülür
+             lower(regexp_replace(normalize(translate(girdi, 'ı', 'i'), NFD), '[\u0300-\u036f]', '', 'g') COLLATE "C"),
              '[^a-z0-9]+', '-', 'g'),
            120)), '')
 $$;
@@ -76,7 +77,7 @@ LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
 DECLARE
   toplam int := 0;
 BEGIN
-  IF isbn ~ '^[0-9]{13}$' THEN
+  IF isbn ~ '^97[89][0-9]{10}$' THEN          -- ISBN-13 yalnızca 978/979 önekli (diğer EAN-13'ler kitap değil)
     FOR i IN 1..13 LOOP
       toplam := toplam + substr(isbn, i, 1)::int * CASE WHEN i % 2 = 1 THEN 1 ELSE 3 END;
     END LOOP;
@@ -102,10 +103,14 @@ END $$;
 CREATE FUNCTION ceviri_ust_guncelle() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
-  ana  text := left(TG_TABLE_NAME, -length('_ceviri'));
-  kid  bigint := COALESCE(to_jsonb(NEW), to_jsonb(OLD)) ->> (ana || '_id');
+  ana   text := left(TG_TABLE_NAME, -length('_ceviri'));
+  yeni  text := to_jsonb(NEW) ->> (ana || '_id');   -- INSERT/UPDATE
+  eski  text := to_jsonb(OLD) ->> (ana || '_id');   -- UPDATE/DELETE (çeviri başka kayda taşınırsa ikisi de)
+  tip   text := (SELECT format_type(atttypid, atttypmod) FROM pg_attribute
+                 WHERE attrelid = ana::regclass AND attname = 'id');   -- bigint ya da uuid
 BEGIN
-  EXECUTE format('UPDATE %I SET guncelleme_zamani = now() WHERE id = $1', ana) USING kid;
+  EXECUTE format('UPDATE %I SET guncelleme_zamani = now() WHERE id IN ($1::%s, $2::%s)', ana, tip, tip)
+    USING yeni, eski;
   RETURN NULL;
 END $$;
 
@@ -120,9 +125,11 @@ CREATE TABLE dil (
   varsayilan  boolean NOT NULL DEFAULT false,
   aktif       boolean NOT NULL DEFAULT true,
   siralama    smallint NOT NULL DEFAULT 0,
-  CHECK (NOT varsayilan OR aktif)
+  CHECK (NOT varsayilan OR aktif),
+  -- en fazla bir; ertelenmiş: UPDATE dil SET varsayilan = (kod = 'en') satır sırasından bağımsız çalışsın
+  CONSTRAINT dil_tek_varsayilan EXCLUDE USING btree (varsayilan WITH =) WHERE (varsayilan)
+    DEFERRABLE INITIALLY DEFERRED
 );
-CREATE UNIQUE INDEX dil_tek_varsayilan_idx ON dil (varsayilan) WHERE varsayilan;   -- en fazla bir
 
 CREATE FUNCTION varsayilan_dil() RETURNS text
 LANGUAGE sql STABLE PARALLEL SAFE AS $$ SELECT kod FROM dil WHERE varsayilan $$;
@@ -622,6 +629,9 @@ CREATE TABLE karar (
   tam_metin_dosya_id     uuid REFERENCES dosya(id),            -- PDF/UDF (Soru: metin mi dosya mı?)
   ofis_davasi            boolean NOT NULL DEFAULT false,
   anonimlestirildi       boolean NOT NULL DEFAULT false,
+  -- KVKK: anonimleştirilmemiş kararın dosyası yalnızca 'ozel' olabilir (basvuru.cv ile aynı teknik;
+  -- anonimleştirildiğinde NULL olur ve bileşik FK devre dışı kalır, tek sütunlu FK varlığı denetler)
+  tam_metin_erisim       text GENERATED ALWAYS AS (CASE WHEN NOT anonimlestirildi THEN 'ozel' END) STORED,
   anonimlestiren_id      bigint REFERENCES kullanici(id),
   anonimlestirme_zamani  timestamptz,
   durum                  icerik_durumu NOT NULL DEFAULT 'taslak',
@@ -637,6 +647,7 @@ CREATE TABLE karar (
                            setweight(to_tsvector('turkish', coalesce(ozet, '')), 'B') ||
                            setweight(to_tsvector('turkish', coalesce(tam_metin, '')), 'C')) STORED,
   UNIQUE (mahkeme_id, karar_no),
+  FOREIGN KEY (tam_metin_dosya_id, tam_metin_erisim) REFERENCES dosya (id, erisim),
   -- KVKK kapısı: anonimleştirildiği işaretlenmeden ve onaysız karar yayına alınamaz
   CHECK (durum <> 'yayinda' OR (yayin_tarihi IS NOT NULL AND anonimlestirildi AND onaylayan_id IS NOT NULL)),
   CHECK (anonimlestirildi = (anonimlestiren_id IS NOT NULL)),
@@ -799,7 +810,7 @@ CREATE INDEX basvuru_cv_idx      ON basvuru (cv_dosya_id);
 CREATE TABLE acilir_duyuru (
   id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   gorsel_dosya_id     uuid REFERENCES dosya(id),
-  baglanti            text CHECK (baglanti ~ '^(/($|[^/])|https://)'),
+  baglanti            text CHECK (baglanti ~ '^(/($|[^/])|https://)' AND baglanti !~ '[\s\\]'),
   baslangic           timestamptz NOT NULL,
   bitis               timestamptz NOT NULL,
   otomatik_kapanma_sn smallint CHECK (otomatik_kapanma_sn BETWEEN 3 AND 60),
@@ -835,15 +846,18 @@ CREATE TABLE site_ayar (
 CREATE TABLE yonlendirme (
   id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   kaynak_yol        text NOT NULL UNIQUE CHECK (kaynak_yol ~ '^/($|[^/])'),
-  hedef             text NOT NULL CHECK (hedef ~ '^(/($|[^/])|https://)'),  -- '//evil' reddedilir
+  hedef             text NOT NULL CHECK (hedef ~ '^(/($|[^/])|https://)' AND hedef !~ '[\s\\]'),  -- '//evil', '/\evil', '/<TAB>/evil' reddedilir
   durum_kodu        smallint NOT NULL DEFAULT 301 CHECK (durum_kodu IN (301, 302, 308)),
   olusturma_zamani  timestamptz NOT NULL DEFAULT now(),
   CHECK (kaynak_yol <> hedef)
 );
--- Zincir ve döngü engeli: hedef başka bir yönlendirmenin kaynağı olamaz (ve tersi)
+-- Zincir ve döngü engeli: hedef başka bir yönlendirmenin kaynağı olamaz (ve tersi).
+-- Kilit: eşzamanlı iki işlem birbirinin kaydını göremez (/a->/b ve /b->/a ikisi de geçerdi); yazanlar sıralanır,
+-- READ COMMITTED'da kilit beklendikten sonraki sorgular diğer işlemin kaydını görür.
 CREATE FUNCTION yonlendirme_zincir_kontrol() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
+  PERFORM pg_advisory_xact_lock(TG_RELID::bigint);
   IF EXISTS (SELECT 1 FROM yonlendirme WHERE kaynak_yol = NEW.hedef AND id <> NEW.id)
      OR EXISTS (SELECT 1 FROM yonlendirme WHERE hedef = NEW.kaynak_yol AND id <> NEW.id) THEN
     RAISE EXCEPTION 'yönlendirme zinciri/döngüsü: % -> %', NEW.kaynak_yol, NEW.hedef
@@ -955,12 +969,13 @@ BEGIN
   RETURN NULL;
 END $$;
 
--- Onaylayan yalnızca aktif editor/yonetici olabilir (yazar kendi içeriğini yayına alamaz)
+-- Onaylayan yalnızca aktif editor/yonetici olabilir (yazar kendi içeriğini yayına alamaz).
+-- Yeniden yayına almada (taslak/arsiv -> yayinda) eski onay yeniden denetlenir: onaylayan hâlâ yetkili olmalı.
 CREATE FUNCTION onaylayan_yetki_kontrol() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
   IF NEW.onaylayan_id IS NOT NULL
-     AND (TG_OP = 'INSERT' OR NEW.onaylayan_id IS DISTINCT FROM OLD.onaylayan_id)
+     AND (TG_OP = 'INSERT' OR NEW.onaylayan_id IS DISTINCT FROM OLD.onaylayan_id OR (NEW.durum = 'yayinda' AND OLD.durum IS DISTINCT FROM 'yayinda'))
      AND NOT EXISTS (SELECT 1 FROM kullanici k
                      WHERE k.id = NEW.onaylayan_id AND k.aktif AND k.rol IN ('yonetici', 'editor')) THEN
     RAISE EXCEPTION 'kullanıcı #% onay/yayın yetkisine sahip değil', NEW.onaylayan_id
@@ -987,6 +1002,32 @@ LANGUAGE sql STABLE AS $$
                                         WHERE yy.yayin_id = y.id AND yy.kisi_id = k.kisi_id)))))
 $$;
 
+-- KVKK: başvuru silinince (süre dolumu, silme talebi) ya da CV değişince eski CV hiçbir başvuruda
+-- kullanılmıyorsa dosya satırı silinir ve diskteki dosya kuyruğa yazılır. Dosya başka bir tabloda da
+-- kullanılıyorsa (FK) bırakılır; böylece tek bir dosya tüm saklama temizliğini durdurmaz.
+CREATE FUNCTION basvuru_cv_birak() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+  anahtar text;
+BEGIN
+  IF OLD.cv_dosya_id IS NULL
+     OR (TG_OP = 'UPDATE' AND NEW.cv_dosya_id IS NOT DISTINCT FROM OLD.cv_dosya_id)
+     OR EXISTS (SELECT 1 FROM basvuru WHERE cv_dosya_id = OLD.cv_dosya_id) THEN
+    RETURN NULL;
+  END IF;
+  BEGIN
+    DELETE FROM dosya WHERE id = OLD.cv_dosya_id RETURNING depolama_anahtari INTO anahtar;
+  EXCEPTION WHEN foreign_key_violation THEN
+    RETURN NULL;
+  END;
+  IF anahtar IS NOT NULL THEN
+    INSERT INTO dosya_silme_kuyrugu (depolama_anahtari) VALUES (anahtar) ON CONFLICT DO NOTHING;
+  END IF;
+  RETURN NULL;
+END $$;
+CREATE TRIGGER basvuru_cv_birak AFTER DELETE OR UPDATE OF cv_dosya_id ON basvuru
+  FOR EACH ROW EXECUTE FUNCTION basvuru_cv_birak();
+
 -- KVKK saklama süresi: günlük systemd timer / cron ile çağrılır: SELECT * FROM kisisel_veri_temizle();
 CREATE FUNCTION kisisel_veri_temizle(log_saklama interval DEFAULT interval '2 years')
 RETURNS TABLE (tablo text, silinen bigint)
@@ -1000,14 +1041,10 @@ BEGIN
   DELETE FROM iletisim_mesaji WHERE saklama_bitis < now();
   GET DIAGNOSTICS n = ROW_COUNT; tablo := 'iletisim_mesaji'; silinen := n; RETURN NEXT;
 
-  WITH b AS (DELETE FROM basvuru WHERE saklama_bitis < now() RETURNING cv_dosya_id),
-       d AS (DELETE FROM dosya f USING b
-             WHERE f.id = b.cv_dosya_id
-               AND NOT EXISTS (SELECT 1 FROM basvuru x WHERE x.cv_dosya_id = f.id AND x.saklama_bitis >= now())
-             RETURNING f.depolama_anahtari)
-  INSERT INTO dosya_silme_kuyrugu (depolama_anahtari) SELECT depolama_anahtari FROM d
-  ON CONFLICT DO NOTHING;
-  GET DIAGNOSTICS n = ROW_COUNT; tablo := 'basvuru_cv_dosyasi'; silinen := n; RETURN NEXT;
+  -- CV dosyaları basvuru_cv_birak tetikleyicisiyle silinip kuyruğa yazılır (eklenme_zamani = bu işlemin now()'u)
+  DELETE FROM basvuru WHERE saklama_bitis < now();
+  SELECT count(*) INTO n FROM dosya_silme_kuyrugu WHERE eklenme_zamani = now();
+  tablo := 'basvuru_cv_dosyasi'; silinen := n; RETURN NEXT;
 
   DELETE FROM degisiklik_log WHERE olusturma_zamani < now() - log_saklama;
   GET DIAGNOSTICS n = ROW_COUNT; tablo := 'degisiklik_log'; silinen := n; RETURN NEXT;

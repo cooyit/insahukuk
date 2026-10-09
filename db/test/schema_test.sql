@@ -1,6 +1,6 @@
 -- =====================================================================
---  insa_schema_v2.sql doğrulama testleri (PostgreSQL 16)
---  psql -X -d insa_v2 -f insa_v2_tests.sql 2>&1
+--  db/schema.sql doğrulama testleri (PostgreSQL 16)
+--  Çalıştırma: db/test/calistir.sh  (elle: psql -X -d <db> -f db/test/schema_test.sql 2>&1)
 --  Beklenen hata = "ERROR" satırı; ertelenmiş kısıtlar hatayı COMMIT'te verir.
 -- =====================================================================
 \set ON_ERROR_STOP 0
@@ -241,7 +241,7 @@ VALUES (sha256('t1'), 1, now() - interval '2 days', now() - interval '2 days' + 
 INSERT INTO oturum (token_hash, kullanici_id, son_kullanma) VALUES (sha256('t2'), 1, now() + interval '30 days');
 \echo '--- f) kisisel_veri_temizle()'
 SELECT * FROM kisisel_veri_temizle();
-SELECT * FROM dosya_silme_kuyrugu;
+SELECT depolama_anahtari, eklenme_zamani IS NOT NULL AS eklenme_zamani_var FROM dosya_silme_kuyrugu;  -- zaman damgası genişliği değişken: yazdırma
 SELECT count(*) AS kalan_mesaj FROM iletisim_mesaji;
 
 -- ---------------------------------------------------------------------
@@ -323,10 +323,53 @@ JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
 WHERE c.contype = 'f'
   AND NOT EXISTS (SELECT 1 FROM pg_index i WHERE i.indrelid = c.conrelid AND (i.indkey::int2[])[0] = c.conkey[1])
 GROUP BY c.oid, c.conrelid, c.confrelid
-ORDER BY c.confrelid::regclass::text, c.conrelid::regclass::text;
+ORDER BY c.confrelid::regclass::text, c.conrelid::regclass::text, fk_sutun;
 
 -- ---------------------------------------------------------------------
 \echo ''
 \echo '=== V13 slug_tr() ==='
 SELECT g AS girdi, slug_tr(g) AS slug, slug_tr(g)::slug IS NOT NULL AS domain_gecerli
 FROM (VALUES ('Şirketler & Gayrimenkul Hukuku — İmar/Çevre'), ('IĞDIR ÜNİVERSİTESİ'), ('  --Kâr Payı--  '), ('Ağır Ceza')) v(g);
+
+-- ---------------------------------------------------------------------
+\echo ''
+\echo '=== V14 Doğrulama turunda düzeltilenler ==='
+\echo '--- a) e-postada ASCII dışı yerel kısım (ınfo@, İnfo@) -> ikisi de reddedilmeli'
+SELECT 'ınfo@insa.av.tr'::eposta;
+SELECT 'İnfo@insa.av.tr'::eposta;
+\echo '--- b) slug_tr: JS toLowerCase(İ) çıktısı (i + U+0307) ve ayrışık (NFD) girdi -> idare-hukuku / sirket-imar'
+SELECT slug_tr(U&'i\0307dare hukuku') AS js_kucuk_i, slug_tr(normalize('Şirket İmar', NFD)) AS nfd;
+\echo '--- c) anonimleştirilmemiş karar genel dosyaya bağlanırsa -> reddedilmeli; özel dosyaya -> kabul'
+BEGIN;
+INSERT INTO dosya (id, tur, erisim, depolama_anahtari, orijinal_ad, mime_tur, boyut, sha256)
+VALUES ('00000000-0000-0000-0000-0000000000d1', 'pdf', 'genel', 'genel/v14-karar.pdf', 'karar.pdf', 'application/pdf', 10, sha256('d1')),
+       ('00000000-0000-0000-0000-0000000000d2', 'pdf', 'ozel',  'ozel/v14-karar.pdf',  'karar.pdf', 'application/pdf', 10, sha256('d2'));
+SAVEPOINT s;
+INSERT INTO karar (mahkeme_id, karar_tarihi, slug, konu, tam_metin_dosya_id, olusturan_id)
+VALUES ((SELECT min(id) FROM mahkeme), '2025-01-01', 'v14-genel', 'Deneme', '00000000-0000-0000-0000-0000000000d1', 1);
+ROLLBACK TO s;
+INSERT INTO karar (mahkeme_id, karar_tarihi, slug, konu, tam_metin_dosya_id, olusturan_id)
+VALUES ((SELECT min(id) FROM mahkeme), '2025-01-01', 'v14-ozel', 'Deneme', '00000000-0000-0000-0000-0000000000d2', 1)
+RETURNING slug, tam_metin_erisim;
+ROLLBACK;
+\echo '--- d) başvuru elle silinince (KVKK silme talebi) CV dosyası silinip kuyruğa yazılmalı'
+BEGIN;
+INSERT INTO dosya (id, tur, erisim, depolama_anahtari, orijinal_ad, mime_tur, boyut, sha256)
+VALUES ('00000000-0000-0000-0000-0000000000d3', 'pdf', 'ozel', 'ozel/v14-cv.pdf', 'cv.pdf', 'application/pdf', 10, sha256('d3'));
+INSERT INTO basvuru (ad, eposta, cv_dosya_id, aydinlatma_surumu)
+VALUES ('Aday İki', 'aday2@example.com', '00000000-0000-0000-0000-0000000000d3', 'v1');
+DELETE FROM basvuru WHERE eposta = 'aday2@example.com';
+SELECT (SELECT count(*) FROM dosya WHERE id = '00000000-0000-0000-0000-0000000000d3') AS dosya_kaldi,
+       (SELECT count(*) FROM dosya_silme_kuyrugu WHERE depolama_anahtari = 'ozel/v14-cv.pdf') AS kuyrukta;
+ROLLBACK;
+\echo '--- e) yönlendirme hedefi "/" + ters bölü + "evil" ya da "/" + sekme + "/evil" -> ikisi de reddedilmeli (tarayıcı ikisini de //evil sayar)'
+INSERT INTO yonlendirme (kaynak_yol, hedef) VALUES ('/v14-a', '/\evil.example');
+INSERT INTO yonlendirme (kaynak_yol, hedef) VALUES ('/v14-b', E'/\t/evil.example');
+\echo '--- f) ISBN-13 yalnızca 978/979 önekli: 0000000000000 -> f, 9780306406157 -> t'
+SELECT isbn_gecerli('0000000000000') AS sifirlar, isbn_gecerli('9780306406157') AS gecerli;
+\echo '--- g) varsayılan dili tek ifadeyle değiştirip geri almak (tek-varsayılan kısıtı ertelenmiş) -> kabul'
+BEGIN;
+UPDATE dil SET varsayilan = (kod = 'en');
+UPDATE dil SET varsayilan = (kod = 'tr');
+COMMIT;
+SELECT kod AS varsayilan_dil FROM dil WHERE varsayilan;

@@ -1,4 +1,6 @@
-// usage: node gen.mjs <projectDir>  -> data/articles.json, src/assets/img/*.png, src/content/md/*.md
+// usage: node gen.mjs <projectDir> [--md]  -> data/articles.json, src/assets/img/*.png (+ --md: src/content/md/*.md)
+// --md yalnızca Markdown content collection senaryosu için; JSON ölçümünde Astro bu dosyaları otomatik
+// koleksiyon yapıp derlemeyi ~20 sn / ~150 MB büyütüyor.
 import fs from 'node:fs'; import path from 'node:path'; import { createRequire } from 'node:module';
 const dir = process.argv[2]; const require = createRequire(path.join(dir, 'package.json'));
 const sharp = require('sharp');
@@ -18,8 +20,9 @@ function body(w, nWords, md) {
   }
   return out;
 }
-const N = 200, arts = [];
-fs.mkdirSync(path.join(dir, 'src/content/md'), { recursive: true });
+const N = 200, arts = [], mdYaz = process.argv.includes('--md');
+fs.mkdirSync(path.join(dir, 'data'), { recursive: true });
+if (mdYaz) fs.mkdirSync(path.join(dir, 'src/content/md'), { recursive: true });
 for (let i = 0; i < N; i++) for (const loc of ['tr', 'en']) {
   const w = loc === 'tr' ? trW : enW; const nWords = 2000 + Math.floor(rnd() * 2000);
   const a = { id: i, locale: loc, slug: `${loc === 'tr' ? 'makale' : 'article'}-${i}-${words(w, 3).replace(/[^a-z0-9ığüşöç]+/g, '-')}`,
@@ -27,7 +30,8 @@ for (let i = 0; i < N; i++) for (const loc of ['tr', 'en']) {
     cover: `img${String(i % 20).padStart(2, '0')}.png`, author: `Av. ${words(w, 2)}`, area: words(w, 2), html: body(w, nWords, false) };
   arts.push(a);
   const md = `---\ntitle: "${a.title}"\nlocale: ${loc}\ndate: ${a.date}\nexcerpt: "${a.excerpt}"\ncover: ../../assets/img/${a.cover}\n---\n` + body(w, nWords, true);
-  fs.writeFileSync(path.join(dir, `src/content/md/${loc}-${i}.md`), md);
+  // md her durumda üretilir: body() rnd() tüketiyor, atlanırsa JSON içeriği ölçülenden farklı olur
+  if (mdYaz) fs.writeFileSync(path.join(dir, `src/content/md/${loc}-${i}.md`), md);
 }
 fs.writeFileSync(path.join(dir, 'data/articles.json'), JSON.stringify(arts));
 const totalWords = arts.reduce((s, a) => s + a.html.split(' ').length, 0);
