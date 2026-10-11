@@ -1,0 +1,48 @@
+---
+// Breadcrumb (konum yolu). Son oge bulunulan sayfadir; baglanti degil, aria-current ile isaretlenir.
+import { metinler, type Dil } from '../lib/metinler';
+import { yollar } from '../lib/yollar';
+
+interface Props {
+  dil: Dil;
+  // Ana sayfa otomatik eklenir; buraya ondan sonraki ogeler gelir. Son ogenin url'si yok sayilir.
+  ogeler: { ad: string; url?: string | null }[];
+}
+
+const { dil, ogeler } = Astro.props;
+const m = metinler[dil];
+const tum = [{ ad: m.anaSayfa, url: yollar[dil].anaSayfa }, ...ogeler];
+---
+
+<nav class="kirinti" aria-label={m.konum}>
+  <ol>
+    {
+      tum.map((oge, i) =>
+        i === tum.length - 1 || !oge.url ? (
+          <li aria-current={i === tum.length - 1 ? 'page' : undefined}>{oge.ad}</li>
+        ) : (
+          <li>
+            <a href={oge.url}>{oge.ad}</a>
+          </li>
+        ),
+      )
+    }
+  </ol>
+</nav>
+
+<style>
+  .kirinti ol {
+    display: flex;
+    flex-wrap: wrap;
+    list-style: none;
+    margin: 0 0 var(--bosluk);
+    padding: 0;
+    font-size: 0.9375rem;
+    color: var(--renk-metin-ikincil);
+  }
+
+  .kirinti li + li::before {
+    content: '/';
+    padding-inline: 0.5rem;
+  }
+</style>

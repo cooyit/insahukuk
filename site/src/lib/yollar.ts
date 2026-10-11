@@ -1,6 +1,6 @@
-// Sabit sayfalarin adresleri. Icerik sayfalarinin (ekip/slug vb.) adresini veri modulu
+// Bolumlerin kok adresleri ve menu. Icerik sayfalarinin (ekip/slug vb.) adresini veri modulu
 // bu koklerden uretir; boylece bir adres degisirse tek yer degisir.
-import type { Dil } from './metinler';
+import { metinler, type Dil } from './metinler';
 
 // Kararlar yalnizca Turkce oldugu icin 'en' altinda kararlar yolu bilerek yok.
 export const yollar = {
@@ -37,7 +37,9 @@ export interface MenuOgesi {
   yol: string;
 }
 
-// Menuye bir oge, o sayfa gercekten uretildiginde eklenir; yoksa kirik baglanti olur.
-export function menuOgeleri(_dil: Dil): MenuOgesi[] {
-  return [];
+// Menu sirasi docs/inceleme 6.3: Hakkimizda, Calisma Alanlari, Arabuluculuk, Ekip, Yayinlar,
+// Kararlar, Iletisim. Bir oge, o sayfa gercekten uretildiginde eklenir; yoksa kirik baglanti olur.
+export function menuOgeleri(dil: Dil): MenuOgesi[] {
+  const m = metinler[dil];
+  return [{ ad: m.ekip, yol: yollar[dil].ekip }];
 }

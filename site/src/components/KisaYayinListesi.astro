@@ -1,0 +1,51 @@
+---
+// Profil ve calisma alani sayfalarindaki kisa yayin listesi: tur, baslik, tarih.
+import { tarihBicimle, isoGun } from '../lib/bicim';
+import { yayinTurAdlari, type Dil } from '../lib/metinler';
+import type { YayinOzet } from '../lib/veri';
+
+interface Props {
+  dil: Dil;
+  yayinlar: YayinOzet[];
+}
+
+const { dil, yayinlar } = Astro.props;
+---
+
+<ul class="kisa-yayinlar">
+  {
+    yayinlar.map((y) => (
+      <li>
+        <span class="tur">{yayinTurAdlari[dil][y.tur]}</span>
+        <span class="baslik">{y.baslik}</span>
+        <time datetime={isoGun(y.tarih)}>{tarihBicimle(y.tarih, dil)}</time>
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .kisa-yayinlar {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .kisa-yayinlar li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.75rem;
+    padding-block: 0.5rem;
+    border-bottom: 1px solid var(--renk-cizgi);
+  }
+
+  .tur,
+  time {
+    color: var(--renk-metin-ikincil);
+    font-size: 0.9375rem;
+  }
+
+  .baslik {
+    flex: 1 1 20rem;
+  }
+</style>

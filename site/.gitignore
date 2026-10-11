@@ -3,3 +3,4 @@ dist/
 .astro/
 test-sonuclari/
 playwright-raporu/
+.DS_Store

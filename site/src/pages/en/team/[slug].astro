@@ -1,0 +1,15 @@
+---
+import type { GetStaticPaths } from 'astro';
+import KisiSayfasi from '../../../components/KisiSayfasi.astro';
+import { kisiDetaylariGetir, type KisiDetay } from '../../../lib/veri';
+
+// EN profil yalnizca EN biyografisi olan aktif kisi icin uretilir (kural veri modulunde).
+export const getStaticPaths = (async () => {
+  const kisiler = await kisiDetaylariGetir('en');
+  return kisiler.map((kisi) => ({ params: { slug: kisi.slug }, props: { kisi } }));
+}) satisfies GetStaticPaths;
+
+const { kisi } = Astro.props as { kisi: KisiDetay };
+---
+
+<KisiSayfasi dil="en" kisi={kisi} />

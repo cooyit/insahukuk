@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 // Her sayfa turunden bir ornek. Yeni bir sayfa turu eklenince buraya da eklenir.
-const SAYFALAR = ['/', '/en', '/404'];
+const SAYFALAR = ['/', '/en', '/404', '/ekip', '/ekip/ayse-yilmaz', '/en/team', '/en/team/ayse-yilmaz'];
 
 test.describe('kural: WCAG 2.2 AA, ciddi ve kritik axe ihlali yok', () => {
   for (const yol of SAYFALAR) {

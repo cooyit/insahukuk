@@ -17,8 +17,8 @@
 | P0 Hazirlik | bitti |
 | P1 Iskelet | bitti |
 | P2 Veri modulu ve mock veri | bitti |
-| P3 Ekip | yapilmadi (sirada) |
-| P4 Calisma alanlari ve arabuluculuk | yapilmadi |
+| P3 Ekip | bitti |
+| P4 Calisma alanlari ve arabuluculuk | yapilmadi (sirada) |
 | P5 Yayinlar | yapilmadi |
 | P6 Kararlar | yapilmadi |
 | P7 Ana sayfa, hakkimizda, iletisim, yasal sayfalar | yapilmadi |
@@ -174,6 +174,41 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 
 ---
 
+## P3 Ekip
+
+**Baslamadan once**
+1. Kaynak: gorev Bolum 5 P3; Bolum 3 hukuki kisitlar (meslege baslama yalnizca yil, yabanci dil `Intl.DisplayNames`); `docs/inceleme` 6.1 (ELIG profil duzeni), 6.3 (ekip listesinde yalnizca foto, ad, unvan); `db/VERI_MODELI.md` bolum 4 (sicil no acik soru).
+2. En basit yol: iki gorunum bileseni (`EkipSayfasi`, `KisiSayfasi`) + dort ince rota dosyasi (TR/EN x liste/detay). Veri tamamen `veri.ts`'den hazir gelir.
+3. Yapmazsam: ekip sayfasi yok; ana sayfadaki ekip blogu (P7) baglanacak yer bulamaz.
+4. Uyum: "X yillik tecrube" yok (testli), cep numarasi gizli (testli), sicil no gosterilmiyor (S2), foto yerine bas harf.
+
+**Ne:**
+- `/ekip`, `/ekip/{slug}`, `/en/team`, `/en/team/{slug}`. Menuye "Ekip" / "Team" eklendi.
+- `src/components/EkipSayfasi.astro` (liste), `KisiSayfasi.astro` (profil), `KisiFoto.astro` (bas harfli yer tutucu), `KirintiYolu.astro` (breadcrumb; P4'te de kullanilacak), `KisaYayinListesi.astro`.
+- Profil: unvan, "Arabulucu" sifati (varsa), biyografi, egitim, deneyim, yayinlar, calisma alanlari, sitede gosterilecek telefonlar, yabanci diller, meslege baslama yili, baro.
+
+**Neden:** inceleme 6.1'deki profil duzeni (unvan, alanlar, egitimde derece, gorevlerde yil araligi, profile bagli yayinlar).
+
+**Nasil:**
+- Rota dosyasi yalnizca `getStaticPaths` ile `kisiDetaylariGetir(dil)` cagirir ve bileseni dil ile cizer. Hangi kisinin sayfasi olacagi kurali veri modulunde (aktif + EN icin EN biyografisi).
+- EN listede herkes var; EN profili olmayanin adi baglantisiz (S4).
+- Profilde alan adlari ve yayin basliklari **bu pakette baglantisiz**: o sayfalar P4/P5'te uretiliyor ve kirik baglanti testi her commit'te calisiyor. P4 ve P5'te baglantiya donusur.
+- Foto yer tutucusu `aria-hidden`: ad hemen yaninda yazili, ekran okuyucu ayni adi iki kez okumasin.
+- Yan sutun `<aside>` degil `<div>`: `main` icindeki `aside` axe'in "best-practice" uyarisini veriyor, ek bir anlam da katmiyor.
+
+**Mimarideki yeri:** `src/pages/ekip/[slug].astro` -> `kisiDetaylariGetir('tr')` (veri.ts) -> mock; cizim `KisiSayfasi.astro` -> `Temel.astro`.
+
+**Testler (P3):**
+| Dosya | Korudugu kural |
+|---|---|
+| `test/cikti/ekip.test.ts` (7) | Pasif kisi sayfasi/listede adi yok; EN profil sayilari; liste sirasi; listede yalnizca ad/unvan; gizli cep numarasi hicbir sayfada yok; profilde "N yil" yok; meslege baslama yili yazili |
+| `test/e2e/ekip.e2e.ts` (2) | Menu -> liste -> profil -> breadcrumb; dil secici karsilik varsa profile, yoksa EN ana sayfaya |
+| `test/e2e/erisilebilirlik.e2e.ts` | axe: `/ekip`, `/ekip/ayse-yilmaz`, `/en/team`, `/en/team/ayse-yilmaz` eklendi |
+
+**Bulunan hata:** "N yil" testinin ilk halinde `\b` vardi; JavaScript'te `\b` noktasiz i gibi Turkce harfleri kelime harfi saymadigi icin "23 yillik" (Turkce yazimiyla) yakalanmiyordu. Bozarak dogrulamada fark edildi, `\b` kaldirildi ve `u` bayragi eklendi; ikinci denemede test kirmiziya dondu.
+
+---
+
 ## Kararlar tablosu
 
 | # | Karar | Gerekce | Kim karar verdi | Plandan sapma mi |
@@ -198,6 +233,10 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | K18 | Temizleyicide `img` yok, `h1` -> `h2` | Directus `/assets` canlida kullanilmayacak; sayfada tek h1 | ben karar verdim | hayir |
 | K19 | Yasal sayfalar icin mock'a `kvkk_basvuru` sayfa satiri eklendi | Sema degisikligi degil, veri; `/kvkk-basvuru` sayfasi sayfa tablosundan uretilsin | ben karar verdim | hayir |
 | K20 | Yayindaki kitap icin ISBN `9780306406157` (bilinen ornek numara) | Uydurma bir 978-605 numarasi gercek bir kitapla cakisabilir | ben karar verdim | hayir |
+| K21 | Gorunum bilesenleri (`EkipSayfasi` ...) + ince rota dosyalari | TR ve EN ayni sablonu kullanir; rota dosyasi yalnizca adres ve veri secer | ben karar verdim | hayir |
+| K22 | P3'te profildeki alan ve yayin adlari baglantisiz | Hedef sayfalar P4/P5'te; ara commit'te kirik baglanti olmasin | ben karar verdim | hayir (gecici) |
+| K23 | Kisi e-postasi ve LinkedIn profilde yok | Gorevdeki detay listesinde yok; V2 onerisi | ben karar verdim | hayir |
+| K24 | `site/.gitignore`'a `.DS_Store` | macOS Finder dosyasi `git add site/src` ile yanlislikla girmesin | ben karar verdim | hayir |
 
 ---
 
@@ -223,6 +262,7 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 |---|---|---|---|---|
 | P1 | 0 hata | 2/2 | 12/12 | 5/5 |
 | P2 | 0 hata | 236/236 | 19/19 | 5/5 |
+| P3 | 0 hata | 236/236 | 26/26 | 11/11 |
 
 **Bozarak dogrulanan testler:**
 | Test | Nasil bozuldu | Sonuc |
@@ -234,8 +274,9 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | `veri.test.ts` (yayin ve karar kurali) | Ayni bozuk mock + `kararGorunurMu`'dan `anonimlestirildi` sarti silindi | iki test kirmizi, geri alindi |
 | `veri.test.ts` (EN sayfa kurali) | `kisiProfilVarMi` her dilde true dondu, `yayinCevirisi`'nden `hazir` sarti silindi | dort test kirmizi, geri alindi |
 | `yasakli-kelime.test.ts` | Footer notuna TR "Uzman", EN "award-winning" eklendi | iki test kirmizi, geri alindi |
+| `yasakli-kelime.test.ts` + `ekip.test.ts` ("N yil") | Profilde yilin yanina "(23 yillik tecrube)" ve ayrica "(23 yil)" (sitede Turkce harflerle) yazdirildi | ilk denemede yalnizca yasakli kelime testi yakaladi; regex duzeltildi, ikinci denemede ekip testi de kirmizi; geri alindi |
 
-- Son dogrulama: P2 sonu, 12 Ekim 2026 01:58 (Europe/Istanbul): check 0 hata, birim 236, cikti 19, e2e 5; hepsi yesil.
+- Son dogrulama: P3 sonu, 12 Ekim 2026 02:05 (Europe/Istanbul): check 0 hata, birim 236, cikti 26, e2e 11; hepsi yesil.
 
 ---
 
@@ -244,6 +285,7 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 - **P0 Hazirlik:** Ilerleme belgesi acildi: genel cerceve, acik sorular, plan, ortam bilgisi ve 05:35 uyandirmasinin durumu.
 - **P1 Iskelet:** `site/` altinda Astro 7.3.8 projesi, ortak yerlesim, global CSS, TR/EN yonlendirme, 404, robots ve site haritasi. Vitest (birim + dist) ve Playwright (dil, icerige atla, axe) testleri kuruldu.
 - **P2 Veri modulu ve mock veri:** Sema adlariyla birebir mock tablolar, yayin kurallarini tasiyan tek veri modulu, HTML temizleyici ve bicim yardimcilari eklendi; footer site ayarina baglandi. Kurallar birim, mock butunluk ve dist testleriyle korunuyor.
+- **P3 Ekip:** TR/EN ekip listesi ve profil sayfalari, bas harfli foto yer tutucusu ve breadcrumb eklendi; menuye Ekip girdi. Pasif kisi, gizli telefon ve "N yil" ifadesi icin dist testleri yazildi.
 
 ---
 
@@ -270,3 +312,8 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | 17 | `git diff --cached --name-status` | Hazirlik alaninda yalniz P2 dosyalari oldugunu kontrol etti. |
 | 18 | `git commit -m "Veri modulu ve mock veriyi ekle" -m "..."` | P2 commit'i. |
 | 19 | `git push origin worktree-site-gece` | P2'yi uzaga gonderdi. |
+| 20 | `git status --short` | P3 dosyalarini listeledi. |
+| 21 | `git add docs/site-gece-calismasi.md site/.gitignore site/src site/test` | P3 dosyalarini acik yollarla hazirlik alanina koydu. |
+| 22 | `git diff --cached --name-status` | Hazirlik alaninda yalniz P3 dosyalari oldugunu kontrol etti. |
+| 23 | `git commit -m "Ekip sayfalarini ekle" -m "..."` | P3 commit'i. |
+| 24 | `git push origin worktree-site-gece` | P3'u uzaga gonderdi. |

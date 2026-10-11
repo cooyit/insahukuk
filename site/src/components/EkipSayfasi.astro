@@ -1,0 +1,63 @@
+---
+// Ekip listesi (TR /ekip, EN /en/team). Yalnizca foto, ad ve unvan (docs/inceleme 6.3).
+// Siralama veri modulunde: unvan sirasi, sonra unvan icindeki siralama.
+import Temel from '../layouts/Temel.astro';
+import KirintiYolu from './KirintiYolu.astro';
+import KisiFoto from './KisiFoto.astro';
+import { digerDil, metinler, type Dil } from '../lib/metinler';
+import { ekibiGetir } from '../lib/veri';
+import { yollar } from '../lib/yollar';
+
+interface Props {
+  dil: Dil;
+}
+
+const { dil } = Astro.props;
+const m = metinler[dil];
+const ekip = await ekibiGetir(dil);
+---
+
+<Temel baslik={m.ekip} aciklama={m.ekipAciklama} karsilik={yollar[digerDil(dil)].ekip}>
+  <KirintiYolu dil={dil} ogeler={[{ ad: m.ekip }]} />
+  <h1>{m.ekip}</h1>
+  <ul class="ekip">
+    {
+      ekip.map((kisi) => (
+        <li class="kart">
+          <KisiFoto kisi={kisi} />
+          <div>
+            <p class="ad">{kisi.url ? <a href={kisi.url}>{kisi.tamAd}</a> : kisi.tamAd}</p>
+            {kisi.unvan && <p class="unvan">{kisi.unvan}</p>}
+          </div>
+        </li>
+      ))
+    }
+  </ul>
+</Temel>
+
+<style>
+  .ekip {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+    gap: calc(var(--bosluk) * 1.5);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .kart {
+    display: flex;
+    align-items: center;
+    gap: var(--bosluk);
+  }
+
+  .ad {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .unvan {
+    margin: 0;
+    color: var(--renk-metin-ikincil);
+  }
+</style>

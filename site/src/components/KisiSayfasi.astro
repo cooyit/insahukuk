@@ -1,0 +1,191 @@
+---
+// Kisi profili (TR /ekip/{slug}, EN /en/team/{slug}).
+// Reklam yasagi: meslege baslama yalnizca yil olarak yazilir, "X yillik tecrube" hesaplanmaz.
+// KVKK: yalnizca sitede gosterilmesi isaretli telefonlar gelir (veri modulu suzer).
+import Temel from '../layouts/Temel.astro';
+import KirintiYolu from './KirintiYolu.astro';
+import KisaYayinListesi from './KisaYayinListesi.astro';
+import KisiFoto from './KisiFoto.astro';
+import { dilAdi, telefonBicimle } from '../lib/bicim';
+import { metinler, type Dil } from '../lib/metinler';
+import type { KisiDetay } from '../lib/veri';
+import { yollar } from '../lib/yollar';
+
+interface Props {
+  dil: Dil;
+  kisi: KisiDetay;
+}
+
+const { dil, kisi } = Astro.props;
+const m = metinler[dil];
+
+function yilAraligi(bas: number | null, bit: number | null): string {
+  if (bas === null && bit === null) return '';
+  if (bas === null) return String(bit);
+  return `${bas}–${bit ?? m.halen}`;
+}
+---
+
+<Temel baslik={kisi.seoBaslik ?? kisi.tamAd} aciklama={kisi.aciklama} karsilik={kisi.karsilik}>
+  <KirintiYolu dil={dil} ogeler={[{ ad: m.ekip, url: yollar[dil].ekip }, { ad: kisi.tamAd }]} />
+
+  <header class="profil-bas">
+    <KisiFoto kisi={kisi} boyut="buyuk" />
+    <div>
+      <h1>{kisi.tamAd}</h1>
+      {kisi.unvan && <p class="unvan">{kisi.unvan}</p>}
+      {kisi.arabulucu && <p class="unvan">{m.arabulucu}</p>}
+    </div>
+  </header>
+
+  <div class="profil">
+    <div class="ana">
+      {
+        kisi.biyografi && (
+          <section aria-labelledby="biyografi">
+            <h2 id="biyografi">{m.biyografi}</h2>
+            <Fragment set:html={kisi.biyografi} />
+          </section>
+        )
+      }
+
+      {
+        kisi.egitim.length > 0 && (
+          <section aria-labelledby="egitim">
+            <h2 id="egitim">{m.egitim}</h2>
+            <ul>
+              {kisi.egitim.map((e) => (
+                <li>
+                  {[e.okul, e.bolum].filter(Boolean).join(', ')}
+                  {e.derece && ` — ${e.derece}`}
+                  {yilAraligi(e.baslangicYili, e.bitisYili) && ` (${yilAraligi(e.baslangicYili, e.bitisYili)})`}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )
+      }
+
+      {
+        kisi.deneyim.length > 0 && (
+          <section aria-labelledby="deneyim">
+            <h2 id="deneyim">{m.deneyim}</h2>
+            <ul>
+              {kisi.deneyim.map((d) => (
+                <li>
+                  {d.pozisyon}, {d.kurum}
+                  {yilAraligi(d.baslangicYili, d.bitisYili) && ` (${yilAraligi(d.baslangicYili, d.bitisYili)})`}
+                  {d.aciklama && <p>{d.aciklama}</p>}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )
+      }
+
+      {
+        kisi.yayinlar.length > 0 && (
+          <section aria-labelledby="yayinlar">
+            <h2 id="yayinlar">{m.yayinlar}</h2>
+            <KisaYayinListesi dil={dil} yayinlar={kisi.yayinlar} />
+          </section>
+        )
+      }
+    </div>
+
+    <div class="yan">
+      {
+        kisi.alanlar.length > 0 && (
+          <section aria-labelledby="alanlar">
+            <h2 id="alanlar">{m.calismaAlanlari}</h2>
+            <ul>
+              {kisi.alanlar.map((a) => (
+                <li>{a.ad}</li>
+              ))}
+            </ul>
+          </section>
+        )
+      }
+
+      <dl>
+        {
+          kisi.telefonlar.map((t) => (
+            <>
+              <dt>{t.tur === 'dahili' ? m.dahili : m.telefon}</dt>
+              <dd>{t.tur === 'dahili' ? t.numara : <a href={`tel:${t.numara}`}>{telefonBicimle(t.numara)}</a>}</dd>
+            </>
+          ))
+        }
+        {
+          kisi.yabanciDiller.length > 0 && (
+            <>
+              <dt>{m.yabanciDiller}</dt>
+              <dd>{kisi.yabanciDiller.map((kod) => dilAdi(kod, dil)).join(', ')}</dd>
+            </>
+          )
+        }
+        {
+          kisi.meslegeBaslamaYili && (
+            <>
+              <dt>{m.meslegeBaslamaYili}</dt>
+              <dd>{kisi.meslegeBaslamaYili}</dd>
+            </>
+          )
+        }
+        {
+          kisi.baroAdi && (
+            <>
+              <dt>{m.baro}</dt>
+              <dd>{kisi.baroAdi}</dd>
+            </>
+          )
+        }
+      </dl>
+    </div>
+  </div>
+</Temel>
+
+<style>
+  .profil-bas {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--bosluk) * 1.5);
+    margin-bottom: calc(var(--bosluk) * 2);
+  }
+
+  .profil-bas h1 {
+    margin-bottom: 0.25rem;
+  }
+
+  .unvan {
+    margin: 0;
+    color: var(--renk-metin-ikincil);
+  }
+
+  .profil {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: calc(var(--bosluk) * 2);
+  }
+
+  @media (max-width: 48rem) {
+    .profil {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .yan dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.25rem 1rem;
+  }
+
+  .yan dt {
+    font-weight: 600;
+  }
+
+  .yan dd {
+    margin: 0;
+  }
+</style>

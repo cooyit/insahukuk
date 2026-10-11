@@ -1,0 +1,54 @@
+---
+// Kisi fotografi; foto yoksa bas harfli yer tutucu. Bu gece hicbir kiside gercek foto yok.
+// Ad her zaman yaninda yazili oldugu icin yer tutucu ekran okuyucudan gizlenir (tekrar olmasin).
+import type { KisiOzet } from '../lib/veri';
+
+interface Props {
+  kisi: KisiOzet;
+  boyut?: 'kucuk' | 'buyuk';
+}
+
+const { kisi, boyut = 'kucuk' } = Astro.props;
+const piksel = boyut === 'buyuk' ? 160 : 96;
+---
+
+{
+  kisi.fotoUrl ? (
+    <img class:list={['foto', boyut]} src={kisi.fotoUrl} alt="" width={piksel} height={piksel} loading="lazy" />
+  ) : (
+    <span class:list={['foto', 'bas-harf', boyut]} aria-hidden="true">
+      {kisi.basHarfler}
+    </span>
+  )
+}
+
+<style>
+  .foto {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 6rem;
+    height: 6rem;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .buyuk {
+    width: 10rem;
+    height: 10rem;
+  }
+
+  .bas-harf {
+    background: var(--renk-zemin-ikincil);
+    border: 1px solid var(--renk-cizgi);
+    color: var(--renk-vurgu);
+    font-weight: 700;
+    font-size: 1.75rem;
+    letter-spacing: 0.05em;
+  }
+
+  .buyuk.bas-harf {
+    font-size: 2.75rem;
+  }
+</style>
