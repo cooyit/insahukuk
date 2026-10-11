@@ -1,0 +1,91 @@
+---
+// Karar listesi (/kararlar, yalnizca TR): mahkeme, yil, alan ve mevzuat filtresi.
+// Yalnizca anonimlestirilmis ve yayindaki kararlar gelir (kural veri modulunde). Sonuc
+// anlatimi ("kazandik"), muvekkil ya da "ofis davasi" bilgisi yok (docs/inceleme 7).
+import Temel from '../layouts/Temel.astro';
+import FiltreFormu, { type FiltreSecimi } from './FiltreFormu.astro';
+import KirintiYolu from './KirintiYolu.astro';
+import { isoGun, tarihBicimle } from '../lib/bicim';
+import { degerler, secenekleriTopla } from '../lib/filtre';
+import { metinler } from '../lib/metinler';
+import { kararlariGetir } from '../lib/veri';
+
+const m = metinler.tr;
+const kararlar = await kararlariGetir();
+
+// Mahkeme filtresi ust mahkemeye gore (Yargitay, Danistay ...); daireler ayri secenek olmaz.
+const secimler: FiltreSecimi[] = [
+  { ad: 'mahkeme', etiket: m.mahkeme, secenekler: secenekleriTopla(kararlar, (k) => [{ deger: String(k.ustMahkeme.id), ad: k.ustMahkeme.ad }]) },
+  { ad: 'yil', etiket: m.yil, secenekler: secenekleriTopla(kararlar, (k) => [{ deger: String(k.yil), ad: String(k.yil) }], 'azalan') },
+  { ad: 'alan', etiket: m.alan, secenekler: secenekleriTopla(kararlar, (k) => k.alanlar.map((a) => ({ deger: String(a.id), ad: a.ad }))) },
+  {
+    ad: 'mevzuat',
+    etiket: m.mevzuat,
+    secenekler: secenekleriTopla(kararlar, (k) => k.mevzuat.map((v) => ({ deger: String(v.mevzuatId), ad: v.kisaAd ? `${v.kisaAd} (${v.ad})` : v.ad }))),
+  },
+];
+---
+
+<Temel baslik={m.kararlar} aciklama={m.kararlarAciklama}>
+  <KirintiYolu dil="tr" ogeler={[{ ad: m.kararlar }]} />
+  <h1>{m.kararlar}</h1>
+  <p class="ikincil">{m.kararlarNotu}</p>
+
+  <FiltreFormu dil="tr" listeId="karar-listesi" secimler={secimler} sayiSablonu={m.kararSayisi} sonucYok={m.kararYok} />
+
+  <ol id="karar-listesi" class="liste">
+    {
+      kararlar.map((k) => (
+        <li
+          data-filtre-oge
+          data-mahkeme={k.ustMahkeme.id}
+          data-yil={k.yil}
+          data-alan={degerler(k.alanlar.map((a) => a.id))}
+          data-mevzuat={degerler(k.mevzuat.map((v) => v.mevzuatId))}
+        >
+          <p class="ikincil ust-bilgi">
+            <span>{k.mahkemeAdi}</span>
+            <time datetime={isoGun(k.tarih)}>{tarihBicimle(k.tarih, 'tr')}</time>
+          </p>
+          <h2>
+            <a href={k.url}>{k.konu}</a>
+          </h2>
+          <p class="ikincil">
+            {[k.esasNo && `E. ${k.esasNo}`, k.kararNo && `K. ${k.kararNo}`].filter(Boolean).join(', ')}
+            {k.mevzuat.length > 0 && ` · ${k.mevzuat.map((v) => v.etiket).join(', ')}`}
+          </p>
+          {k.ozet && <p>{k.ozet}</p>}
+        </li>
+      ))
+    }
+  </ol>
+</Temel>
+
+<style>
+  .liste {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .liste li {
+    padding-block: var(--bosluk);
+    border-bottom: 1px solid var(--renk-cizgi);
+  }
+
+  .liste h2 {
+    font-size: 1.25rem;
+    margin: 0.25rem 0;
+  }
+
+  .liste p {
+    margin: 0.25rem 0;
+  }
+
+  .ust-bilgi {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 0.75rem;
+    font-size: 0.9375rem;
+  }
+</style>

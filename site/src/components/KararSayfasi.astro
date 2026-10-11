@@ -1,0 +1,125 @@
+---
+// Karar detayi (/kararlar/{kunye-slug}, yalnizca TR): kunye, konu, ozet, mevzuat maddeleri,
+// anonimlestirilmis tam metin, varsa dosyasi, etiketler ve ilgili yayinlar.
+// Veri nesnesinde ofis_davasi yok; "hangi avukatin davasi" bilgisi bu sayfaya hic gelmez.
+import Temel from '../layouts/Temel.astro';
+import KirintiYolu from './KirintiYolu.astro';
+import KisaYayinListesi from './KisaYayinListesi.astro';
+import { isoGun, tarihBicimle } from '../lib/bicim';
+import { metinler } from '../lib/metinler';
+import type { KararDetay } from '../lib/veri';
+import { yollar } from '../lib/yollar';
+
+interface Props {
+  karar: KararDetay;
+}
+
+const { karar } = Astro.props;
+const m = metinler.tr;
+---
+
+<Temel baslik={karar.konu} aciklama={karar.aciklama}>
+  <KirintiYolu dil="tr" ogeler={[{ ad: m.kararlar, url: yollar.tr.kararlar }, { ad: karar.konu }]} />
+
+  <article>
+    <h1>{karar.konu}</h1>
+
+    <dl class="kunye">
+      <dt>{m.mahkeme}</dt>
+      <dd>{karar.mahkemeAdi}</dd>
+      {karar.esasNo && (<><dt>{m.esasNo}</dt><dd>{karar.esasNo}</dd></>)}
+      {karar.kararNo && (<><dt>{m.kararNo}</dt><dd>{karar.kararNo}</dd></>)}
+      <dt>{m.kararTarihi}</dt>
+      <dd><time datetime={isoGun(karar.tarih)}>{tarihBicimle(karar.tarih, 'tr')}</time></dd>
+      {
+        karar.alanlar.length > 0 && (
+          <>
+            <dt>{m.calismaAlanlari}</dt>
+            <dd>
+              {karar.alanlar.map((a, i) => (
+                <>
+                  {i > 0 && ', '}
+                  {a.url ? <a href={a.url}>{a.ad}</a> : a.ad}
+                </>
+              ))}
+            </dd>
+          </>
+        )
+      }
+    </dl>
+
+    {karar.ozet && <p class="giris">{karar.ozet}</p>}
+
+    {
+      karar.mevzuat.length > 0 && (
+        <section aria-labelledby="ilgili-mevzuat">
+          <h2 id="ilgili-mevzuat">{m.ilgiliMevzuat}</h2>
+          <ul>
+            {karar.mevzuat.map((v) => (
+              <li>
+                <abbr title={v.ad}>{v.kisaAd ?? v.ad}</abbr>
+                {v.madde && ` m. ${v.madde}`}
+                {v.kisaAd && <span class="ikincil"> — {v.ad}</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+
+    {
+      karar.tamMetin && (
+        <section aria-labelledby="karar-metni">
+          <h2 id="karar-metni">{m.kararMetni}</h2>
+          <div class="icerik" set:html={karar.tamMetin} />
+        </section>
+      )
+    }
+
+    {
+      karar.dosya && (
+        <p>
+          <a href={karar.dosya.url} download={karar.dosya.ad}>
+            {m.kararDosyasi}: {karar.dosya.ad}
+          </a>
+        </p>
+      )
+    }
+
+    {karar.etiketler.length > 0 && <p class="ikincil">{m.etiketler}: {karar.etiketler.map((e) => e.ad).join(', ')}</p>}
+
+    {
+      karar.yayinlar.length > 0 && (
+        <section aria-labelledby="ilgili-yayinlar">
+          <h2 id="ilgili-yayinlar">{m.ilgiliYayinlar}</h2>
+          <KisaYayinListesi dil="tr" yayinlar={karar.yayinlar} />
+        </section>
+      )
+    }
+  </article>
+</Temel>
+
+<style>
+  .kunye {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.25rem 1rem;
+  }
+
+  .kunye dt {
+    font-weight: 600;
+  }
+
+  .kunye dd {
+    margin: 0;
+  }
+
+  .giris {
+    font-size: 1.125rem;
+    color: var(--renk-metin-ikincil);
+  }
+
+  section {
+    margin-top: calc(var(--bosluk) * 2);
+  }
+</style>

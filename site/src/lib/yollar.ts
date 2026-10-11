@@ -50,5 +50,7 @@ export function menuOgeleri(dil: Dil): MenuOgesi[] {
     { ad: m.arabuluculuk, yol: yollar[dil].arabuluculuk },
     { ad: m.ekip, yol: yollar[dil].ekip },
     { ad: m.yayinlar, yol: yollar[dil].yayinlar },
+    // Kararlar yalnizca Turkce: EN menude yok (S3).
+    ...(dil === 'tr' ? [{ ad: metinler.tr.kararlar, yol: yollar.tr.kararlar }] : []),
   ];
 }

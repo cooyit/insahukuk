@@ -20,8 +20,8 @@
 | P3 Ekip | bitti |
 | P4 Calisma alanlari ve arabuluculuk | bitti |
 | P5 Yayinlar | bitti |
-| P6 Kararlar | yapilmadi (sirada) |
-| P7 Ana sayfa, hakkimizda, iletisim, yasal sayfalar | yapilmadi |
+| P6 Kararlar | bitti |
+| P7 Ana sayfa, hakkimizda, iletisim, yasal sayfalar | yapilmadi (sirada) |
 | P8 Kalite gecisi | yapilmadi |
 | P9 Son gozden gecirme | yapilmadi |
 
@@ -283,6 +283,37 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 
 ---
 
+## P6 Kararlar
+
+**Baslamadan once**
+1. Kaynak: gorev Bolum 5 P6 (mahkeme, yil, alan, mevzuat filtresi; kunye, mevzuat maddeleri, ilgili yayinlar), Bolum 3 (kararda "kazandik", muvekkil ve "ofis davasi" yok; yalnizca TR); `docs/inceleme` 6.1 (Baran Dogan: karar-mevzuat iliskisi), 6.3 (`/kararlar/{kunye-slug}`), 7 "Kararlar modulu".
+2. En basit yol: P5'teki filtre formu ve betigi aynen; iki gorunum bileseni, iki rota dosyasi. EN yok.
+3. Yapmazsam: menudeki son icerik bolumu eksik; yayinlardaki ilgili kararlar baglantisiz kalir.
+4. Uyum: veri nesnesinde `ofis_davasi` yok (P2), sayfalarda sonuc dili yok (testli); liste basinda "kararlar anonimlestirilmistir" notu.
+
+**Ne:**
+- `/kararlar` (filtreli liste), `/kararlar/{slug}` (detay); menuye yalnizca TR'de "Kararlar".
+- `KararlarSayfasi.astro`, `KararSayfasi.astro`. Detay: kunye (mahkeme > daire, esas no, karar no, karar tarihi, alanlar), ozet, ilgili mevzuat (`<abbr>` ile kisa ad + madde + tam ad), anonimlestirilmis karar metni, varsa dosya, etiketler, ilgili yayinlar.
+- Yayin sayfasindaki ilgili kararlar artik baglanti (P5'teki gecici durum kapandi). Boylece yayin <-> karar baglantisi iki yonlu.
+
+**Nasil:**
+- Mahkeme filtresi ust mahkemeye gore (Yargitay, Danistay, AYM, Istanbul BAM); daireler ayri secenek degil: 6 kararlik listede daire secenegi cogu zaman tek sonuc verir.
+- Mevzuat filtresinde secenek adi "TBK (Turk Borclar Kanunu)" (sitede Turkce harflerle); madde filtrede degil, listede yazili.
+- Karar sayfalarinda `karsilik` yok: hreflang uretilmez, dil secici EN ana sayfaya gider.
+
+**Mimarideki yeri:** `src/pages/kararlar/[slug].astro` -> `kararDetaylariGetir()` (dil parametresi yok) -> mock; cizim `KararSayfasi.astro`.
+
+**Testler (P6):**
+| Dosya | Korudugu kural |
+|---|---|
+| `test/cikti/kararlar.test.ts` (8) | Tam 6 karar; taslak/anonimlestirilmemis ve ileri tarihli yok ve hicbir sayfada konusu yok; her karar ORNEK isaretli; EN'de karar yok ve EN sayfalar kararlara baglanmiyor; karar sayfalarinda hreflang yok; "kazandik", "muvekkil", "ofis davasi" ... (Turkce yazimlariyla) yok; sayfa HTML'inin hicbir yerinde "ofis" yok; kunye ve mevzuat; yayin <-> karar karsilikli baglanti |
+| `test/e2e/kararlar.e2e.ts` (3) | Mahkeme, yil, mevzuat, alan filtreleri ve birlesimi; liste -> detay -> ilgili yayin; EN menude kararlar yok |
+| `erisilebilirlik.e2e.ts` | axe: karar listesi ve detay |
+
+**Test duzeltmesi:** Ilk yazdigim "ofis davasi olan karar digerleriyle ayni HTML yapisinda" testi kirilgandi (kararlarin mevzuat sayisi farkli oldugu icin yapi zaten farkli). Kuralin dogrudan olcusu olan "sayfanin hicbir yerinde 'ofis' yok" testiyle degistirildi.
+
+---
+
 ## Kararlar tablosu
 
 | # | Karar | Gerekce | Kim karar verdi | Plandan sapma mi |
@@ -318,6 +349,8 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | K29 | Etiket sayfasi yok | Gorev yalnizca filtre istiyor; ayri sayfa ince icerik ve fazladan adres demek | ben karar verdim | hayir |
 | K30 | Dis baglantilar `rel="external noreferrer"`, yeni sekme yok | Referer karsi siteye gitmez; yeni sekme kullaniciyi sasirtir | ben karar verdim | hayir |
 | K31 | EN yayin sayfasinda ilgili kararlar gosterilmez | Kararlar yalnizca TR (S3) | ben karar verdim | hayir |
+| K32 | Karar mahkeme filtresi ust mahkemeye gore | Daire secenegi az kayitta tek sonuc verir; daire listede yazili | ben karar verdim | hayir |
+| K33 | Karar listesinde "anonimlestirilmistir, taraf bilgisi icermez" notu | Okuyan kararlarin buroyla iliskisini varsaymasin; metni buro gozden gecirmeli | ben karar verdim | hayir |
 
 ---
 
@@ -346,6 +379,7 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | P3 | 0 hata | 236/236 | 26/26 | 11/11 |
 | P4 | 0 hata | 236/236 | 32/32 | 20/20 |
 | P5 | 0 hata | 239/239 | 44/44 | 30/30 |
+| P6 | 0 hata | 239/239 | 52/52 | 35/35 |
 
 **Bozarak dogrulanan testler:**
 | Test | Nasil bozuldu | Sonuc |
@@ -363,7 +397,9 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 
 | `yayinlar.e2e.ts` (filtre) | `filtre.ts`'de `oge.hidden = false` (hic gizleme) | iki test kirmizi, geri alindi |
 
-- Son dogrulama: P5 sonu, 12 Ekim 2026 02:20 (Europe/Istanbul): check 0 hata, birim 239, cikti 44, e2e 30; hepsi yesil.
+| `kararlar.test.ts` + `yasakli-kelime.test.ts` + `veri.test.ts` (ofis davasi) | `kararOzeti`'nde `ofis_davasi` olan kararin mahkeme adina "(ofis davasi)" eklendi | dort test kirmizi (iki karar testi, yasakli kelime, veri JSON testi), geri alindi |
+
+- Son dogrulama: P6 sonu, 12 Ekim 2026 02:25 (Europe/Istanbul): check 0 hata, birim 239, cikti 52, e2e 35; hepsi yesil.
 
 ---
 
@@ -375,6 +411,7 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 - **P3 Ekip:** TR/EN ekip listesi ve profil sayfalari, bas harfli foto yer tutucusu ve breadcrumb eklendi; menuye Ekip girdi. Pasif kisi, gizli telefon ve "N yil" ifadesi icin dist testleri yazildi.
 - **P4 Calisma alanlari ve arabuluculuk:** Iki seviyeli alan listesi ve detay sayfalari (breadcrumb, alt alanlar, ilgili kisi ve yayinlar), sayfa tablosundan genel sabit sayfa sablonu (arabuluculuk, hakkimizda, yasal sayfalar) eklendi; menuye iki bolum girdi.
 - **P5 Yayinlar:** TR/EN filtreli yayin listesi (tur, alan, yazar, yil, etiket; JS yoksa tam liste) ve ture gore degisen detay sayfasi (makale icerigi, kitap kunyesi, video dis baglantisi, haber kaynagi, PDF ekleri, yazarlar) eklendi; profil ve alan sayfalarindaki yayinlar baglantiya dondu.
+- **P6 Kararlar:** Yalnizca TR karar listesi (mahkeme, yil, alan, mevzuat filtresi) ve detay sayfasi (kunye, mevzuat maddeleri, anonim metin, ilgili yayinlar) eklendi; yayin-karar baglantisi iki yonlu oldu. Ofis davasi ve sonuc dili icin dist testleri yazildi.
 
 ---
 
@@ -415,3 +452,7 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | 31 | `git diff --cached --name-status` | Hazirlik alaninda yalniz P5 dosyalari oldugunu kontrol etti. |
 | 32 | `git commit -m "Yayin sayfalarini ve filtreyi ekle" -m "..."` | P5 commit'i. |
 | 33 | `git push origin worktree-site-gece` | P5'i uzaga gonderdi. |
+| 34 | `git add docs/site-gece-calismasi.md site/src site/test` | P6 dosyalarini acik yollarla hazirlik alanina koydu. |
+| 35 | `git diff --cached --name-status` | Hazirlik alaninda yalniz P6 dosyalari oldugunu kontrol etti. |
+| 36 | `git commit -m "Karar sayfalarini ekle" -m "..."` | P6 commit'i. |
+| 37 | `git push origin worktree-site-gece` | P6'yi uzaga gonderdi. |

@@ -131,7 +131,8 @@ function alanAdi(url: string): string {
           <ul>
             {yayin.kararlar.map((k) => (
               <li>
-                {k.mahkemeAdi}, {tarihBicimle(k.tarih, dil)}: {k.konu}
+                <a href={k.url}>{k.konu}</a>
+                <span class="ikincil"> — {k.mahkemeAdi}, {tarihBicimle(k.tarih, dil)}</span>
               </li>
             ))}
           </ul>

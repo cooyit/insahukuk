@@ -1,0 +1,15 @@
+---
+import type { GetStaticPaths } from 'astro';
+import KararSayfasi from '../../components/KararSayfasi.astro';
+import { kararDetaylariGetir, type KararDetay } from '../../lib/veri';
+
+// Yalnizca yayindaki, tarihi gelmis ve anonimlestirilmis kararlar (kural veri modulunde).
+export const getStaticPaths = (async () => {
+  const kararlar = await kararDetaylariGetir();
+  return kararlar.map((karar) => ({ params: { slug: karar.slug }, props: { karar } }));
+}) satisfies GetStaticPaths;
+
+const { karar } = Astro.props as { karar: KararDetay };
+---
+
+<KararSayfasi karar={karar} />
