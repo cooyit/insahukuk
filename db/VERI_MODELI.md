@@ -4,14 +4,14 @@ Bu belge veritabanı tasarımını kontrol etmeniz için. Kodun kendisi [`schema
 
 | Dosya | İçerik |
 |---|---|
-| [`schema.sql`](schema.sql) | Çekirdek şema: 35 tablo |
+| [`schema.sql`](schema.sql) | Çekirdek şema: 36 tablo |
 | [`moduller/`](moduller/) | Opsiyonel modüller (12 tablo): sektör, bülten, kariyer, açılır duyuru, karar ekleri. İstenmeyen modül yüklenmez |
 | [`ornek_veri.sql`](ornek_veri.sql) | Kurgusal örnek veri (kişiler uydurma, karar gerçek değil) |
 | [`TABLOLAR.md`](TABLOLAR.md) | Her tablonun alanları, tipleri, zorunlulukları ve kuralları (veritabanından üretildi) |
-| [`test/`](test/) | 16 test grubu (T00–T15); `db/test/calistir.sh` |
+| [`test/`](test/) | 17 test grubu (T00–T16); `db/test/calistir.sh` |
 
 **Directus 12.5 ile denendi (11 Ekim 2026):**
-- **Tanınma:** 47 tablonun hepsi koleksiyon olarak tanındı; 332 alan ve 83 ilişki var, tanınmayan alan tipi yok.
+- **Tanınma:** 48 tablonun hepsi koleksiyon olarak tanındı; 337 alan ve 84 ilişki var, tanınmayan alan tipi yok.
 - **İç içe kayıt:** Yayın ve çevirileri tek istekte kaydedildi.
 - **Kurallar:** "Türkçe çeviri olmadan yayına alınamaz" kuralı Directus üzerinden de çalışıyor.
 
@@ -39,7 +39,7 @@ Bunları bir kez okuyun; her tabloda aynı şekilde geçerli.
    - Kendi kullanıcı, oturum, dosya ve değişiklik kaydı tablolarımız yok; Directus'unkiler kullanılır.
 6. **Silme davranışı:**
    - Bir yayın ya da karar silinirse çevirileri ve bağları da silinir.
-   - Bir kişi silinirse telefonu, eğitimi, deneyimi ve çalışma alanı bağları da silinir. Ama yazarı olduğu bir yayın varsa kişi **silinemez**.
+   - Bir kişi silinirse telefonu, yabancı dilleri, eğitimi, deneyimi ve çalışma alanı bağları da silinir. Ama yazarı olduğu bir yayın varsa kişi **silinemez**.
    - Çalışma alanı, etiket, mevzuat ve mahkeme kullanımdayken **silinemez**. Çalışma alanı `gorunur` = hayır ile gizlenir, mahkeme `aktif` = hayır ile pasif yapılır.
    - Bir dosya silinirse ona bağlı alan boş kalır; yayın eki bağlantısı silinir.
    - Ofisten ayrılan kişi silinmez, `aktif` = hayır yapılır.
@@ -63,6 +63,7 @@ erDiagram
   directus_users |o--o| kisi : "panel hesabı"
   kisi ||--o{ kisi_ceviri : "biyografisi"
   kisi ||--o{ kisi_telefon : "telefonu"
+  kisi ||--o{ kisi_yabanci_dil : "yabancı dili"
   kisi ||--o{ egitim : "eğitimi"
   egitim ||--o{ egitim_ceviri : "çevirisi"
   kisi ||--o{ deneyim : "deneyimi"
@@ -83,6 +84,7 @@ erDiagram
     bool arabulucu_mu
     text baro_sicil_no
     text arabulucu_sicil_no
+    int meslege_baslama_yili
     uuid kullanici FK "directus_users"
     bool aktif
   }
@@ -230,7 +232,7 @@ erDiagram
 
 | Excel tablosu | Excel durumu | Şemada | Değişiklik ve gerekçe |
 |---|---|---|---|
-| `kisi` | Kesin | `kisi` + `kisi_ceviri` | Eklenenler: slug, baro adı/sicil no, arabulucu sicil no, LinkedIn ve panel hesabı bağı. Biyografi çeviri tablosunda |
+| `kisi` | Kesin | `kisi` + `kisi_ceviri` | Eklenenler: slug, baro adı/sicil no, arabulucu sicil no, mesleğe başlama yılı, LinkedIn ve panel hesabı bağı. Biyografi çeviri tablosunda |
 | `kisi_telefon` | Kesin | `kisi_telefon` | `sitede_goster` eklendi (cep varsayılan gizli) |
 | `unvan` | Beklemede | `unvan` + `unvan_ceviri` | Sıralı. Örnek liste `ornek_veri.sql`'de |
 | `egitim` | Kesin | `egitim` + `egitim_ceviri` | Başlangıç/bitiş yılı ve derece eklendi (ELIG örneği) |
@@ -259,6 +261,7 @@ erDiagram
 
 **Excel'de olmayan ama eklenenler:**
 - **`dil`:** Diller tablosu.
+- **`kisi_yabanci_dil`:** Kişinin bilinen yabancı dilleri. Yalnızca ISO kodu (`en`, `de`) saklanır; "İngilizce" / "English" adını site kendisi üretir, iki dilde elle yazmak gerekmez.
 - **`yonlendirme`:** Adres değişince eski bağlantılar kırılmasın diye.
 - **`derleme_isi`:** "Yayımla" kuyruğu.
 - **`karar_etiket`, `karar_calisma_alani`:** Kararlarda filtre için.
@@ -288,7 +291,7 @@ erDiagram
 
 ### Sizin bakmanız gerekenler
 
-- [ ] **Ekip profili için eksik alan var mı?** Reklam yasağı yönetmeliği "mesleğe başlama tarihi" ve "bilinen yabancı dil" bilgilerine izin veriyor; ikisi de modelde yok. Akademik görevler ve mesleki üyelikler de yok.
+- [ ] **Ekip profili için eksik alan var mı?** Reklam yasağı yönetmeliğinin izin verdiği "mesleğe başlama tarihi" (`kisi.meslege_baslama_yili`) ve "bilinen yabancı dil" (`kisi_yabanci_dil`) eklendi. Sitede yalnızca yıl yazılmalı; "20 yıllık tecrübe" gibi öne çıkarma reklam sayılabilir. Akademik görevler ve mesleki üyelikler hâlâ yok; gerekli mi?
 - [ ] **Çalışma alanlarında iki seviye yeterli mi?** Örnek: Kamu Hukuku > İmar Hukuku.
 - [ ] **Yayın türleri yeterli mi?** Şu an: makale, kitap, video, haber, duyuru. Örneğin konuşma/seminer ya da röportaj ayrı bir tür olsun mu?
 - [ ] **Mahkeme türleri listesi:** `mahkeme.tur` değerleri için [`TABLOLAR.md`](TABLOLAR.md#mahkeme)'ye bakın.
@@ -307,13 +310,14 @@ erDiagram
 
 | Deneme | Sonuç |
 |---|---|
-| Tablolar koleksiyon olarak tanınıyor mu? | ✅ 47/47; tanınmayan alan tipi yok; 83 ilişki algılandı |
+| Tablolar koleksiyon olarak tanınıyor mu? | ✅ 48/48; tanınmayan alan tipi yok; 84 ilişki algılandı |
 | Kimlikler | ✅ Sayı olarak dönüyor. Önce `bigint` denendi, metin olarak döndüğü için `integer` yapıldı |
 | Türkçe sıralama | ✅ API'de `sort=soyad`: Demir, Kaya, Yılmaz |
 | Yayın + Türkçe ve İngilizce çeviri tek istekte | ✅ Kabul |
 | Yayın + yalnız İngilizce çeviri | ✅ Reddedildi |
 | Yayındaki yazının Türkçe çevirisini silmek | ✅ Reddedildi; İngilizce çeviriyi silmek kabul |
 | Hatalı e-posta, 3. seviye çalışma alanı | ✅ Reddedildi |
+| Yabancı dil: kod yerine "Almanca", aynı dil iki kez; mesleğe başlama yılı 1940 | ✅ Reddedildi; aynı dil için anlaşılır mesaj |
 | Tekil olmayan slug (yönetici olmayan editör) | ✅ Reddedildi; anlaşılır mesaj gösterildi |
 | Kendi kuralımızı ihlal (yönetici olmayan editör) | ⚠️ Reddedildi, ama editör yalnızca "An unexpected error occurred." gördü |
 
@@ -329,6 +333,7 @@ erDiagram
 3. **Otomatik alanlar:**
    - `olusturan` / `guncelleyen` Directus'un "user created / user updated" özel alanları olarak işaretlenmeli.
    - `onaylayan` ve `onay_zamani`, yayına alma sırasında bir akışla doldurulmalı.
+   - `kisi_yabanci_dil.dil_kodu` açılır liste olmalı (İngilizce → `en`, Almanca → `de` …); editör kod yazmaz.
 4. **İletişim mesajlarında değişiklik kaydı kapalı olmalı:** Açık kalırsa mesajın kopyası `directus_revisions` tablosunda kalır ve saklama süresi dolunca silinmez.
 5. **Yetkiler:**
    - "Yazar" rolü yalnızca kendi kişi kaydını (`kisi.kullanici` = giriş yapan kullanıcı) ve kendi yayınlarını düzenler.

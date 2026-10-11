@@ -386,3 +386,25 @@ COMMIT;
 SELECT i.durum, ic.baslik FROM ilan i JOIN ilan_ceviri ic ON ic.ilan_id = i.id;
 \echo '--- d) karar yorumu imzalı (kişiye bağlı) -> kabul'
 INSERT INTO karar_yorum (karar_id, kisi_id, icerik) VALUES (1, 2, '<p>Değerlendirme</p>') RETURNING karar_id, kisi_id;
+
+-- ---------------------------------------------------------------------
+\echo ''
+\echo '=== T16 Mesleğe başlama yılı ve yabancı diller ==='
+\echo '--- a) mesleğe başlama yılı 1940 -> reddedilmeli; 2010 -> kabul'
+UPDATE kisi SET meslege_baslama_yili = 1940 WHERE id = 2;
+UPDATE kisi SET meslege_baslama_yili = 2010 WHERE id = 2 RETURNING slug, meslege_baslama_yili;
+\echo '--- b) yabancı dil: ISO kodu dışında değer ("Almanca") -> reddedilmeli'
+INSERT INTO kisi_yabanci_dil (kisi_id, dil_kodu) VALUES (2, 'Almanca');
+\echo '--- c) aynı kişiye aynı dil iki kez -> ikincisi reddedilmeli'
+INSERT INTO kisi_yabanci_dil (kisi_id, dil_kodu, sira) VALUES (2, 'en', 1), (2, 'de', 2);
+INSERT INTO kisi_yabanci_dil (kisi_id, dil_kodu) VALUES (2, 'en');
+SELECT k.ad || ' ' || k.soyad AS kisi, k.meslege_baslama_yili, string_agg(d.dil_kodu, ', ' ORDER BY d.sira) AS yabanci_diller
+FROM kisi k JOIN kisi_yabanci_dil d ON d.kisi_id = k.id GROUP BY k.id ORDER BY k.id;
+\echo '--- d) kişi silinirse yabancı dil kayıtları da silinir'
+BEGIN;
+DELETE FROM yayin_yazar WHERE kisi_id = 2;
+DELETE FROM iletisim_mesaji WHERE cevaplayan_kisi_id = 2;
+DELETE FROM karar_yorum WHERE kisi_id = 2;
+DELETE FROM kisi WHERE id = 2;
+SELECT count(*) AS kalan_yabanci_dil FROM kisi_yabanci_dil WHERE kisi_id = 2;
+ROLLBACK;

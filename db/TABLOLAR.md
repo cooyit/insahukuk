@@ -7,7 +7,7 @@
 
 ## Çekirdek şema (`db/schema.sql`)
 
-[`dil`](#dil) · [`calisma_alani`](#calisma_alani) · [`calisma_alani_ceviri`](#calisma_alani_ceviri) · [`unvan`](#unvan) · [`unvan_ceviri`](#unvan_ceviri) · [`kisi`](#kisi) · [`kisi_ceviri`](#kisi_ceviri) · [`kisi_telefon`](#kisi_telefon) · [`kisi_calisma_alani`](#kisi_calisma_alani) · [`egitim`](#egitim) · [`egitim_ceviri`](#egitim_ceviri) · [`deneyim`](#deneyim) · [`deneyim_ceviri`](#deneyim_ceviri) · [`etiket`](#etiket) · [`etiket_ceviri`](#etiket_ceviri) · [`yayin`](#yayin) · [`yayin_ceviri`](#yayin_ceviri) · [`yayin_yazar`](#yayin_yazar) · [`yayin_calisma_alani`](#yayin_calisma_alani) · [`yayin_etiket`](#yayin_etiket) · [`yayin_dosya`](#yayin_dosya) · [`mahkeme`](#mahkeme) · [`mevzuat`](#mevzuat) · [`karar`](#karar) · [`karar_mevzuat`](#karar_mevzuat) · [`karar_etiket`](#karar_etiket) · [`karar_calisma_alani`](#karar_calisma_alani) · [`yayin_karar`](#yayin_karar) · [`sayfa`](#sayfa) · [`sayfa_ceviri`](#sayfa_ceviri) · [`site_ayar`](#site_ayar) · [`site_ayar_ceviri`](#site_ayar_ceviri) · [`iletisim_mesaji`](#iletisim_mesaji) · [`yonlendirme`](#yonlendirme) · [`derleme_isi`](#derleme_isi)
+[`dil`](#dil) · [`calisma_alani`](#calisma_alani) · [`calisma_alani_ceviri`](#calisma_alani_ceviri) · [`unvan`](#unvan) · [`unvan_ceviri`](#unvan_ceviri) · [`kisi`](#kisi) · [`kisi_ceviri`](#kisi_ceviri) · [`kisi_telefon`](#kisi_telefon) · [`kisi_yabanci_dil`](#kisi_yabanci_dil) · [`kisi_calisma_alani`](#kisi_calisma_alani) · [`egitim`](#egitim) · [`egitim_ceviri`](#egitim_ceviri) · [`deneyim`](#deneyim) · [`deneyim_ceviri`](#deneyim_ceviri) · [`etiket`](#etiket) · [`etiket_ceviri`](#etiket_ceviri) · [`yayin`](#yayin) · [`yayin_ceviri`](#yayin_ceviri) · [`yayin_yazar`](#yayin_yazar) · [`yayin_calisma_alani`](#yayin_calisma_alani) · [`yayin_etiket`](#yayin_etiket) · [`yayin_dosya`](#yayin_dosya) · [`mahkeme`](#mahkeme) · [`mevzuat`](#mevzuat) · [`karar`](#karar) · [`karar_mevzuat`](#karar_mevzuat) · [`karar_etiket`](#karar_etiket) · [`karar_calisma_alani`](#karar_calisma_alani) · [`yayin_karar`](#yayin_karar) · [`sayfa`](#sayfa) · [`sayfa_ceviri`](#sayfa_ceviri) · [`site_ayar`](#site_ayar) · [`site_ayar_ceviri`](#site_ayar_ceviri) · [`iletisim_mesaji`](#iletisim_mesaji) · [`yonlendirme`](#yonlendirme) · [`derleme_isi`](#derleme_isi)
 
 ### `dil`
 
@@ -110,6 +110,7 @@ Ekip üyesi: avukat, arabulucu ya da stajyer. Ayrılanlar silinmez, aktif=false 
 | `baro_adi` | metin (Türkçe sıralı) |  |  |
 | `baro_sicil_no` | metin |  | biçim `^[0-9]{1,8}$` |
 | `arabulucu_sicil_no` | metin |  | biçim `^[0-9]{1,8}$` |
+| `meslege_baslama_yili` | küçük sayı |  | yalnızca yıl yazılır; "X yıllık tecrübe" diye öne çıkarılmaz · 1950–2100 |
 | `linkedin_url` | metin |  | https:// bağlantı |
 | `kullanici` | uuid |  | → `directus_users` (o kayıt silinirse boş kalır) · tekil |
 | `aktif` | evet/hayır | *true* | ayrılanlar silinmez, aktif=false |
@@ -157,6 +158,21 @@ Kişinin dahili, sabit ve cep numaraları; cep varsayılan olarak sitede gizli.
 
 - kural: `CHECK ( CASE WHEN (tur = 'dahili'::text) THEN (numara ~ '^[0-9]{2,6}$'::text) ELSE ic.telefon_gecerli(numara) END)`
 - tekil: `UNIQUE (kisi_id, tur, numara)`
+
+### `kisi_yabanci_dil`
+
+Kişinin bilinen yabancı dilleri (ISO 639-1 kodu; ad sitede otomatik üretilir).
+
+| Alan | Tip | Zorunlu | Açıklama |
+|---|---|---|---|
+| `id` | sayı | *otomatik* | birincil anahtar |
+| `kisi_id` | sayı | ✓ | → `kisi` (o kayıt silinirse bu da silinir) |
+| `dil_kodu` | metin | ✓ | ISO 639-1: en, de, fr, ar ... · biçim `^[a-z]{2}$` |
+| `sira` | küçük sayı | *0* |  |
+
+**Tablo kuralları**
+
+- tekil: `UNIQUE (kisi_id, dil_kodu)`
 
 ### `kisi_calisma_alani`
 

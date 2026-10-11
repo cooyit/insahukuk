@@ -182,17 +182,17 @@ psql:172: ERROR:  new row for relation "yayin" violates check constraint "yayin_
 DETAIL:  Failing row contains (13, haber, taslak, null, null, null, null, null, null, null, null, null, null, f, null, null, null, <uuid>, null, <zaman>, <zaman>, null).
 --- c) baro sicil no var ama baro adı yok -> reddedilmeli
 psql:174: ERROR:  new row for relation "kisi" violates check constraint "kisi_check"
-DETAIL:  Failing row contains (6, x-y, X, Y, null, null, null, t, f, null, 999, null, null, null, t, 0, <zaman>, <zaman>).
+DETAIL:  Failing row contains (6, x-y, X, Y, null, null, null, t, f, null, 999, null, null, null, null, t, 0, <zaman>, <zaman>).
 --- d) aynı Directus kullanıcısı iki kişiye bağlanamaz -> reddedilmeli
 psql:176: ERROR:  duplicate key value violates unique constraint "kisi_kullanici_key"
 DETAIL:  Key (kullanici)=(<uuid>) already exists.
 --- e) kişi e-postası büyük harf ya da ASCII dışı (INFO@, ınfo@, İnfo@) -> üçü de reddedilmeli
 psql:178: ERROR:  new row for relation "kisi" violates check constraint "kisi_eposta_check"
-DETAIL:  Failing row contains (3, ali-ozturk, Ali, Öztürk, 3, null, INFO@insa.av.tr, t, f, null, null, null, null, null, t, 2, <zaman>, <zaman>).
+DETAIL:  Failing row contains (3, ali-ozturk, Ali, Öztürk, 3, null, INFO@insa.av.tr, t, f, null, null, null, null, null, null, t, 2, <zaman>, <zaman>).
 psql:179: ERROR:  new row for relation "kisi" violates check constraint "kisi_eposta_check"
-DETAIL:  Failing row contains (3, ali-ozturk, Ali, Öztürk, 3, null, ınfo@insa.av.tr, t, f, null, null, null, null, null, t, 2, <zaman>, <zaman>).
+DETAIL:  Failing row contains (3, ali-ozturk, Ali, Öztürk, 3, null, ınfo@insa.av.tr, t, f, null, null, null, null, null, null, t, 2, <zaman>, <zaman>).
 psql:180: ERROR:  new row for relation "kisi" violates check constraint "kisi_eposta_check"
-DETAIL:  Failing row contains (3, ali-ozturk, Ali, Öztürk, 3, null, İnfo@insa.av.tr, t, f, null, null, null, null, null, t, 2, <zaman>, <zaman>).
+DETAIL:  Failing row contains (3, ali-ozturk, Ali, Öztürk, 3, null, İnfo@insa.av.tr, t, f, null, null, null, null, null, null, t, 2, <zaman>, <zaman>).
 
 === T05 PG16 UNIQUE NULLS NOT DISTINCT ve mahkeme ağacı ===
 --- a) bulten_sayisi (modül): aynı yıl iki "yıllık" (donem NULL) sayı -> ikincisi reddedilmeli
@@ -438,7 +438,7 @@ UPDATE 1
 --- d) Directus'un göreceği tablo sayısı (public, directus_* hariç) ve iç tablolar
  public_tablo |  ic_tablolar  
 --------------+---------------
-           47 | ceviri_kurali
+           48 | ceviri_kurali
 
 
 === T15 Modüller ===
@@ -468,3 +468,35 @@ COMMIT
         1 |       2
 
 INSERT 0 1
+
+=== T16 Mesleğe başlama yılı ve yabancı diller ===
+--- a) mesleğe başlama yılı 1940 -> reddedilmeli; 2010 -> kabul
+psql:394: ERROR:  new row for relation "kisi" violates check constraint "kisi_meslege_baslama_yili_check"
+DETAIL:  Failing row contains (2, zeynep-cakir, Zeynep, Çakır, 3, null, zeynep@insa.av.tr, t, f, İstanbul Barosu, 23456, null, 1940, null, <uuid>, t, 1, <zaman>, <zaman>).
+     slug     | meslege_baslama_yili 
+--------------+----------------------
+ zeynep-cakir |                 2010
+
+UPDATE 1
+--- b) yabancı dil: ISO kodu dışında değer ("Almanca") -> reddedilmeli
+psql:397: ERROR:  new row for relation "kisi_yabanci_dil" violates check constraint "kisi_yabanci_dil_dil_kodu_check"
+DETAIL:  Failing row contains (1, 2, Almanca, 0).
+--- c) aynı kişiye aynı dil iki kez -> ikincisi reddedilmeli
+INSERT 0 2
+psql:400: ERROR:  duplicate key value violates unique constraint "kisi_yabanci_dil_kisi_id_dil_kodu_key"
+DETAIL:  Key (kisi_id, dil_kodu)=(2, en) already exists.
+     kisi     | meslege_baslama_yili | yabanci_diller 
+--------------+----------------------+----------------
+ Zeynep Çakır |                 2010 | en, de
+
+--- d) kişi silinirse yabancı dil kayıtları da silinir
+BEGIN
+DELETE 1
+DELETE 1
+DELETE 1
+DELETE 1
+ kalan_yabanci_dil 
+-------------------
+                 0
+
+ROLLBACK

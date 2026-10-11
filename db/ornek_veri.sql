@@ -47,13 +47,13 @@ INSERT INTO calisma_alani_ceviri (calisma_alani_id, dil, slug, ad, ozet) VALUES
   (6, 'en', 'real-estate-law',    'Real Estate Law',    NULL);
 
 -- Ekip (kurgusal) ---------------------------------------------------------
-INSERT INTO kisi (id, slug, ad, soyad, unvan_id, avukat_mi, arabulucu_mu, baro_adi, baro_sicil_no, arabulucu_sicil_no, eposta, siralama)
-SELECT v.id, v.slug, v.ad, v.soyad, u.id, v.avukat, v.arabulucu, v.baro, v.sicil, v.arb_sicil, v.eposta, v.sira
+INSERT INTO kisi (id, slug, ad, soyad, unvan_id, avukat_mi, arabulucu_mu, baro_adi, baro_sicil_no, arabulucu_sicil_no, meslege_baslama_yili, eposta, siralama)
+SELECT v.id, v.slug, v.ad, v.soyad, u.id, v.avukat, v.arabulucu, v.baro, v.sicil, v.arb_sicil, v.baslama, v.eposta, v.sira
 FROM (VALUES
-  (1, 'ayse-yilmaz', 'Ayşe',  'Yılmaz', 'kurucu-ortak',   true,  true,  'İstanbul Barosu', '10001', '20001', 'ayse.yilmaz@ornek.av.tr', 1),
-  (2, 'mehmet-kaya', 'Mehmet', 'Kaya',  'avukat',         true,  false, 'İstanbul Barosu', '10002', NULL,    'mehmet.kaya@ornek.av.tr', 1),
-  (3, 'elif-demir',  'Elif',  'Demir',  'stajyer-avukat', false, false, NULL,              NULL,    NULL,    NULL,                      1)
-) v(id, slug, ad, soyad, unvan_kod, avukat, arabulucu, baro, sicil, arb_sicil, eposta, sira)
+  (1, 'ayse-yilmaz', 'Ayşe',  'Yılmaz', 'kurucu-ortak',   true,  true,  'İstanbul Barosu', '10001', '20001', 2003, 'ayse.yilmaz@ornek.av.tr', 1),
+  (2, 'mehmet-kaya', 'Mehmet', 'Kaya',  'avukat',         true,  false, 'İstanbul Barosu', '10002', NULL,    2016, 'mehmet.kaya@ornek.av.tr', 1),
+  (3, 'elif-demir',  'Elif',  'Demir',  'stajyer-avukat', false, false, NULL,              NULL,    NULL,    NULL, NULL,                      1)
+) v(id, slug, ad, soyad, unvan_kod, avukat, arabulucu, baro, sicil, arb_sicil, baslama, eposta, sira)
 JOIN unvan u ON u.kod = v.unvan_kod;
 INSERT INTO kisi_ceviri (kisi_id, dil, kisa_biyografi, biyografi) VALUES
   (1, 'tr', 'Gayrimenkul ve imar hukuku alanlarında çalışmaktadır; aynı zamanda arabulucudur.',
@@ -63,6 +63,7 @@ INSERT INTO kisi_ceviri (kisi_id, dil, kisa_biyografi, biyografi) VALUES
 INSERT INTO kisi_telefon (kisi_id, tur, numara, sitede_goster) VALUES
   (1, 'dahili', '101', true), (2, 'dahili', '102', true), (1, 'cep', '+905320000001', false);
 INSERT INTO kisi_calisma_alani (kisi_id, calisma_alani_id) VALUES (1, 4), (1, 6), (2, 3), (2, 5);
+INSERT INTO kisi_yabanci_dil (kisi_id, dil_kodu, sira) VALUES (1, 'en', 1), (1, 'de', 2), (2, 'en', 1), (3, 'fr', 1);
 
 INSERT INTO egitim (id, kisi_id, baslangic_yili, bitis_yili, sira) VALUES
   (1, 1, 1998, 2002, 1), (2, 1, 2004, 2006, 2), (3, 2, 2010, 2014, 1);

@@ -6,7 +6,7 @@ PostgreSQL 16 şeması; yönetim paneli Directus 12, ziyaretçi sitesi Astro. Ek
 
 | Yol | İçerik |
 |---|---|
-| `schema.sql` | Çekirdek şema (35 tablo) |
+| `schema.sql` | Çekirdek şema (36 tablo) |
 | `moduller/*.sql` | Opsiyonel modüller: `sektor`, `bulten`, `kariyer`, `acilir_duyuru`, `karar_ek` |
 | `ornek_veri.sql` | Kurgusal örnek veri (canlıda kullanmayın) |
 | `test/` | Testler: `schema_test.sql`, `beklenen.out`, `calistir.sh`, Directus taslağı |
@@ -47,7 +47,7 @@ DATABASE_URL=postgres://user@host/bos_db db/test/calistir.sh   # var olan boş b
 db/test/calistir.sh --guncelle                        # test bilerek değiştiyse beklenen çıktıyı yenile
 ```
 
-Betik `test/directus_taslak.sql` ile Directus'un iki tablosunu taklit eder, ardından şemayı ve **tüm** modülleri yükleyip `schema_test.sql`'i çalıştırır. Çıktıdaki her `ERROR` satırı bilinçli bir negatif test (şu an 41 adet). Betik çıktıyı zaman damgası, uuid ve dosya yolundan arındırıp `beklenen.out` ile karşılaştırır. Geçici küme için `initdb` ve `pg_ctl` gerekir; betik root ile çalışmaz.
+Betik `test/directus_taslak.sql` ile Directus'un iki tablosunu taklit eder, ardından şemayı ve **tüm** modülleri yükleyip `schema_test.sql`'i çalıştırır. Çıktıdaki her `ERROR` satırı bilinçli bir negatif test (şu an 44 adet). Betik çıktıyı zaman damgası, uuid ve dosya yolundan arındırıp `beklenen.out` ile karşılaştırır. Geçici küme için `initdb` ve `pg_ctl` gerekir; betik root ile çalışmaz.
 
 T14 grubu Directus uyumunu denetler: tek sütunlu birincil anahtar, enum/domain/bytea/generated sütun olmaması. Gerçek Directus 12.5 ile yapılan deneme `VERI_MODELI.md` §6'da.
 
