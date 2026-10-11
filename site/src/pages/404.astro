@@ -1,0 +1,19 @@
+---
+// Tek 404 sayfasi; sunucu hangi dilde adres olursa olsun bunu dondurur. Bu yuzden iki dilde yazili.
+import Temel from '../layouts/Temel.astro';
+import { metinler } from '../lib/metinler';
+import { yollar } from '../lib/yollar';
+
+const tr = metinler.tr;
+const en = metinler.en;
+---
+
+<Temel baslik={tr.sayfaBulunamadi} aciklama={tr.sayfaBulunamadiAciklama} kanonikYok>
+  <h1>{tr.sayfaBulunamadi}</h1>
+  <p>{tr.sayfaBulunamadiAciklama}</p>
+  <p><a href={yollar.tr.anaSayfa}>{tr.anaSayfayaDon}</a></p>
+  <div lang="en">
+    <p>{en.sayfaBulunamadi}. {en.sayfaBulunamadiAciklama}</p>
+    <p><a href={yollar.en.anaSayfa}>{en.anaSayfayaDon}</a></p>
+  </div>
+</Temel>

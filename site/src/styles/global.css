@@ -1,0 +1,167 @@
+/* Tek global stil dosyasi. Renkler WCAG 2.2 AA kontrastini beyaz zeminde saglar
+   (metin 16:1, ikincil metin 7:1, vurgu 8:1). Font sistem yigini: dis font istegi yok (KVKK). */
+
+:root {
+  --renk-zemin: #ffffff;
+  --renk-zemin-ikincil: #f4f5f7;
+  --renk-metin: #1b1d21;
+  --renk-metin-ikincil: #50555e;
+  --renk-vurgu: #1d4a72;
+  --renk-vurgu-koyu: #133452;
+  --renk-cizgi: #d5d8de;
+  --renk-odak: #b35900;
+
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --genislik: 72rem;
+  --bosluk: 1rem;
+  --kose: 4px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font);
+  line-height: 1.6;
+  color: var(--renk-metin);
+  background: var(--renk-zemin);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1;
+  padding-block: calc(var(--bosluk) * 2);
+}
+
+main:focus {
+  outline: none;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+}
+
+h1 {
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  margin-block: 0 var(--bosluk);
+}
+
+a {
+  color: var(--renk-vurgu);
+  text-underline-offset: 0.15em;
+}
+
+a:hover {
+  color: var(--renk-vurgu-koyu);
+}
+
+/* Klavye odagi her zaman gorunsun (WCAG 2.4.7). */
+:focus-visible {
+  outline: 3px solid var(--renk-odak);
+  outline-offset: 2px;
+}
+
+.kap {
+  width: 100%;
+  max-width: var(--genislik);
+  margin-inline: auto;
+  padding-inline: var(--bosluk);
+}
+
+/* Icerige atla: odaklaninca gorunur. */
+.icerige-atla {
+  position: absolute;
+  left: var(--bosluk);
+  top: -10rem;
+  padding: 0.5rem 1rem;
+  background: var(--renk-vurgu);
+  color: #fff;
+  z-index: 10;
+}
+
+.icerige-atla:focus {
+  top: var(--bosluk);
+  color: #fff;
+}
+
+/* Ust bolum. Menu dar ekranda alt satira kayar; acilir menu ve JS gerekmez. */
+.ust {
+  border-bottom: 1px solid var(--renk-cizgi);
+}
+
+.ust-kap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.5rem;
+  padding-block: var(--bosluk);
+}
+
+.site-adi {
+  font-weight: 700;
+  font-size: 1.125rem;
+  color: var(--renk-metin);
+  text-decoration: none;
+  margin-inline-end: auto;
+}
+
+.menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.menu a {
+  display: inline-block;
+  padding-block: 0.25rem;
+  text-decoration: none;
+}
+
+.menu a[aria-current='page'] {
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.dil-secici {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--renk-cizgi);
+  border-radius: var(--kose);
+  text-decoration: none;
+}
+
+/* Alt bilgi */
+.alt {
+  background: var(--renk-zemin-ikincil);
+  border-top: 1px solid var(--renk-cizgi);
+  padding-block: calc(var(--bosluk) * 2);
+  font-size: 0.9375rem;
+}
+
+.alt .not {
+  color: var(--renk-metin-ikincil);
+}
+
+.site-adi-alt {
+  font-weight: 700;
+  margin-top: 0;
+}

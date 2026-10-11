@@ -1,0 +1,31 @@
+{
+  "name": "insahukuk-site",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "test": "vitest run --dir test/birim",
+    "test:cikti": "vitest run --dir test/cikti",
+    "test:e2e": "playwright test",
+    "test:hepsi": "npm run build && npm run test && npm run test:cikti && npm run test:e2e"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "3.7.4",
+    "astro": "7.3.8",
+    "sanitize-html": "2.18.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.64.0",
+    "@types/sanitize-html": "2.16.2",
+    "typescript": "6.0.3",
+    "vitest": "5.0.3"
+  }
+}

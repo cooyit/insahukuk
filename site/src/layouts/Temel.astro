@@ -1,0 +1,91 @@
+---
+// Butun sayfalarin ortak iskeleti: <head> (SEO), icerige atla, ust menu, dil secici, footer.
+import '../styles/global.css';
+import { dilBelirle, digerDil, metinler } from '../lib/metinler';
+import { menuOgeleri, temizYol, yollar } from '../lib/yollar';
+
+interface Props {
+  baslik: string;
+  aciklama: string;
+  // Ayni icerigin diger dildeki adresi. Yalnizca karsiligi varsa verilir; hreflang buna bagli.
+  karsilik?: string | null;
+  // 404 gibi kanonik adresi olmayan sayfalar icin.
+  kanonikYok?: boolean;
+}
+
+const { baslik, aciklama, karsilik = null, kanonikYok = false } = Astro.props;
+const dil = dilBelirle(Astro.currentLocale);
+const diger = digerDil(dil);
+const m = metinler[dil];
+
+const siteAdi = 'Örnek Avukatlık Bürosu';
+const tamBaslik = `${baslik} | ${siteAdi}`;
+const yol = temizYol(Astro.url.pathname);
+const kanonik = new URL(yol, Astro.site).href;
+const menu = menuOgeleri(dil);
+
+// Dil secici: karsilik yoksa diger dilin ana sayfasina gider (bos sayfaya degil).
+const dilSeciciHedef = karsilik ?? yollar[diger].anaSayfa;
+
+function aktifMi(menuYolu: string): boolean {
+  return yol === menuYolu || yol.startsWith(`${menuYolu}/`);
+}
+---
+
+<!doctype html>
+<html lang={dil}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{tamBaslik}</title>
+    <meta name="description" content={aciklama} />
+    {kanonikYok ? <meta name="robots" content="noindex" /> : <link rel="canonical" href={kanonik} />}
+    {
+      karsilik && (
+        <>
+          <link rel="alternate" hreflang={dil} href={kanonik} />
+          <link rel="alternate" hreflang={diger} href={new URL(karsilik, Astro.site).href} />
+        </>
+      )
+    }
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <a class="icerige-atla" href="#icerik">{m.icerigeAtla}</a>
+
+    <header class="ust">
+      <div class="kap ust-kap">
+        <a class="site-adi" href={yollar[dil].anaSayfa}>{siteAdi}</a>
+        {
+          menu.length > 0 && (
+            <nav aria-label={m.anaMenu}>
+              <ul class="menu">
+                {menu.map((oge) => (
+                  <li>
+                    <a href={oge.yol} aria-current={aktifMi(oge.yol) ? 'page' : undefined}>
+                      {oge.ad}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          )
+        }
+        <a class="dil-secici" href={dilSeciciHedef} lang={diger} hreflang={diger}>
+          {metinler[diger].dilAdi}
+        </a>
+      </div>
+    </header>
+
+    <main id="icerik" class="kap" tabindex="-1">
+      <slot />
+    </main>
+
+    <footer class="alt">
+      <div class="kap">
+        <p class="site-adi-alt">{siteAdi}</p>
+        <p class="not">{m.bilgilendirmeNotu}</p>
+      </div>
+    </footer>
+  </body>
+</html>

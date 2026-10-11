@@ -11,6 +11,7 @@ Hukuk ve arabuluculuk bürosu web sitesi projesi (çalışma adı; büro unvanı
 | [`db/schema.sql`](db/schema.sql) | PostgreSQL 16 şeması, Directus 12 ile uyumlu (36 çekirdek tablo + [`db/moduller/`](db/moduller/)) — [`db/README.md`](db/README.md) |
 | [`db/test/`](db/test/) | Şema testleri ve çalıştırıcı (`db/test/calistir.sh`) |
 | [`db/referans/`](db/referans/) | Karşılaştırma için ilk GSI şeması ve sorunlarını gösteren testler |
+| [`site/`](site/) | Astro sitesi (bu asamada mock veriyle): `cd site && npm ci && npm run dev`; ayrinti [`docs/site-gece-calismasi.md`](docs/site-gece-calismasi.md) |
 | [`tools/olcum/`](tools/olcum/) | Bellek/CPU ölçüm betikleri ve ham sonuçlar |
 
 ## Kısaca karar
