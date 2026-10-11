@@ -49,5 +49,6 @@ export function menuOgeleri(dil: Dil): MenuOgesi[] {
     { ad: m.calismaAlanlari, yol: yollar[dil].calismaAlanlari },
     { ad: m.arabuluculuk, yol: yollar[dil].arabuluculuk },
     { ad: m.ekip, yol: yollar[dil].ekip },
+    { ad: m.yayinlar, yol: yollar[dil].yayinlar },
   ];
 }

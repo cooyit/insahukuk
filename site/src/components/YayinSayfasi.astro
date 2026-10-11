@@ -1,0 +1,180 @@
+---
+// Yayin detayi (TR /yayinlar/{slug}, EN /en/publications/{slug}). Gorunum ture gore degisir:
+// makale/duyuru/haber: icerik; kitap: kunye (ISBN ...); video: yalnizca dis baglanti (gomme
+// yok: YouTube vb. yurt disi aktarim ve cerez demek, docs/inceleme 7); PDF ekleri; ilgili kararlar.
+import Temel from '../layouts/Temel.astro';
+import KirintiYolu from './KirintiYolu.astro';
+import { isoGun, tarihBicimle } from '../lib/bicim';
+import { metinler, yayinTurAdlari, type Dil } from '../lib/metinler';
+import type { YayinDetay } from '../lib/veri';
+import { yollar } from '../lib/yollar';
+
+interface Props {
+  dil: Dil;
+  yayin: YayinDetay;
+}
+
+const { dil, yayin } = Astro.props;
+const m = metinler[dil];
+
+function alanAdi(url: string): string {
+  return new URL(url).hostname;
+}
+---
+
+<Temel baslik={yayin.seoBaslik ?? yayin.baslik} aciklama={yayin.aciklama} karsilik={yayin.karsilik}>
+  <KirintiYolu dil={dil} ogeler={[{ ad: m.yayinlar, url: yollar[dil].yayinlar }, { ad: yayin.baslik }]} />
+
+  <article>
+    <header>
+      <p class="ikincil ust-bilgi">
+        <span>{yayinTurAdlari[dil][yayin.tur]}</span>
+        <time datetime={isoGun(yayin.tarih)}>{tarihBicimle(yayin.tarih, dil)}</time>
+      </p>
+      <h1>{yayin.baslik}</h1>
+      {
+        yayin.yazarlar.length > 0 && (
+          <p class="yazarlar">
+            <span class="gorunmez">{m.yazarlar}: </span>
+            {yayin.yazarlar.map((a, i) => (
+              <>
+                {i > 0 && ', '}
+                {a.url ? <a href={a.url}>{a.ad}</a> : a.ad}
+                {a.unvan && <span class="ikincil"> ({a.unvan})</span>}
+              </>
+            ))}
+          </p>
+        )
+      }
+      {yayin.ozet && <p class="giris">{yayin.ozet}</p>}
+    </header>
+
+    {
+      yayin.kitap && (
+        <dl class="kunye">
+          {yayin.kitap.yayinevi && (<><dt>{m.yayinevi}</dt><dd>{yayin.kitap.yayinevi}</dd></>)}
+          {yayin.kitap.isbn && (<><dt>{m.isbn}</dt><dd>{yayin.kitap.isbn}</dd></>)}
+          {yayin.kitap.basimYili && (<><dt>{m.basimYili}</dt><dd>{yayin.kitap.basimYili}</dd></>)}
+          {yayin.kitap.sayfaSayisi && (<><dt>{m.sayfaSayisi}</dt><dd>{yayin.kitap.sayfaSayisi}</dd></>)}
+        </dl>
+      )
+    }
+
+    {
+      yayin.videoUrl && (
+        <p>
+          <a href={yayin.videoUrl} rel="external noreferrer">
+            {m.videoyuIzle}
+          </a>
+          <span class="ikincil"> ({alanAdi(yayin.videoUrl)}; {m.disBaglanti})</span>
+        </p>
+      )
+    }
+
+    {
+      yayin.kaynak?.ad && (
+        <p>
+          {m.kaynak}:{' '}
+          {yayin.kaynak.url ? (
+            <a href={yayin.kaynak.url} rel="external noreferrer">
+              {yayin.kaynak.ad}
+            </a>
+          ) : (
+            yayin.kaynak.ad
+          )}
+          {yayin.kaynak.url && <span class="ikincil"> ({m.disBaglanti})</span>}
+        </p>
+      )
+    }
+
+    {yayin.icerik && <div class="icerik" set:html={yayin.icerik} />}
+
+    {
+      yayin.dosyalar.length > 0 && (
+        <section aria-labelledby="ekler">
+          <h2 id="ekler">{m.ekler}</h2>
+          <ul>
+            {yayin.dosyalar.map((d) => (
+              <li>
+                <a href={d.url} download={d.ad}>
+                  {d.ad}
+                </a>
+                {d.tur === 'application/pdf' && <span class="ikincil"> (PDF)</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+
+    <footer class="yayin-alt">
+      {
+        yayin.alanlar.length > 0 && (
+          <p>
+            {m.calismaAlanlari}:{' '}
+            {yayin.alanlar.map((a, i) => (
+              <>
+                {i > 0 && ', '}
+                {a.url ? <a href={a.url}>{a.ad}</a> : a.ad}
+              </>
+            ))}
+          </p>
+        )
+      }
+      {yayin.etiketler.length > 0 && <p>{m.etiketler}: {yayin.etiketler.map((e) => e.ad).join(', ')}</p>}
+    </footer>
+
+    {
+      yayin.kararlar.length > 0 && (
+        <section aria-labelledby="ilgili-kararlar">
+          <h2 id="ilgili-kararlar">{m.ilgiliKararlar}</h2>
+          <ul>
+            {yayin.kararlar.map((k) => (
+              <li>
+                {k.mahkemeAdi}, {tarihBicimle(k.tarih, dil)}: {k.konu}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+  </article>
+</Temel>
+
+<style>
+  .ust-bilgi {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.9375rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .giris {
+    font-size: 1.125rem;
+    color: var(--renk-metin-ikincil);
+  }
+
+  .kunye {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.25rem 1rem;
+  }
+
+  .kunye dt {
+    font-weight: 600;
+  }
+
+  .kunye dd {
+    margin: 0;
+  }
+
+  .yayin-alt {
+    margin-top: calc(var(--bosluk) * 2);
+    padding-top: var(--bosluk);
+    border-top: 1px solid var(--renk-cizgi);
+  }
+
+  section {
+    margin-top: calc(var(--bosluk) * 2);
+  }
+</style>

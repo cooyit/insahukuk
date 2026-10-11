@@ -34,7 +34,7 @@ export const yayin: Yayin[] = [
   { id: 4, tur: 'makale', durum: 'yayinda', yayin_tarihi: '2025-11-20T09:30:00+03:00', onay_zamani: '2025-11-19T18:00:00+03:00' },
   {
     id: 5, tur: 'video', durum: 'yayinda', yayin_tarihi: '2025-05-08T11:00:00+03:00', onay_zamani: '2025-05-07T15:00:00+03:00',
-    video_url: 'https://www.example.com/video/arabuluculuk-sureci',
+    video_url: 'https://video.example.org/arabuluculuk-sureci',
   },
   {
     id: 6, tur: 'kitap', durum: 'yayinda', yayin_tarihi: '2024-12-01T10:00:00+03:00', onay_zamani: '2024-11-28T12:00:00+03:00',
@@ -42,7 +42,7 @@ export const yayin: Yayin[] = [
   },
   {
     id: 7, tur: 'haber', durum: 'yayinda', yayin_tarihi: '2025-03-14T08:00:00+03:00', onay_zamani: '2025-03-13T17:00:00+03:00',
-    kaynak_adi: 'Örnek Gazete', kaynak_url: 'https://www.example.com/haber/kira-artis-orani',
+    kaynak_adi: 'Örnek Gazete', kaynak_url: 'https://haber.example.net/kira-artis-orani',
   },
   { id: 8, tur: 'duyuru', durum: 'yayinda', yayin_tarihi: '2026-01-05T09:00:00+03:00', onay_zamani: '2026-01-04T10:00:00+03:00' },
   { id: 9, tur: 'makale', durum: 'yayinda', yayin_tarihi: '2027-01-15T09:00:00+03:00', onay_zamani: '2026-10-01T10:00:00+03:00' },

@@ -1,0 +1,15 @@
+---
+import type { GetStaticPaths } from 'astro';
+import YayinSayfasi from '../../../components/YayinSayfasi.astro';
+import { yayinDetaylariGetir, type YayinDetay } from '../../../lib/veri';
+
+// Yalnizca EN cevirisi hazir olan yayinlar icin sayfa uretilir (kural veri modulunde).
+export const getStaticPaths = (async () => {
+  const yayinlar = await yayinDetaylariGetir('en');
+  return yayinlar.map((yayin) => ({ params: { slug: yayin.url.split('/').pop() }, props: { yayin } }));
+}) satisfies GetStaticPaths;
+
+const { yayin } = Astro.props as { yayin: YayinDetay };
+---
+
+<YayinSayfasi dil="en" yayin={yayin} />

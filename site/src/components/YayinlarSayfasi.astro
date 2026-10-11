@@ -1,0 +1,96 @@
+---
+// Yayin listesi (TR /yayinlar, EN /en/publications); tur, alan, yazar, yil ve etiket filtresi
+// (docs/inceleme 6.3). Liste derlemede tam uretilir; filtre yalnizca gizler/gosterir.
+import Temel from '../layouts/Temel.astro';
+import FiltreFormu, { type FiltreSecimi } from './FiltreFormu.astro';
+import KirintiYolu from './KirintiYolu.astro';
+import { isoGun, tarihBicimle } from '../lib/bicim';
+import { degerler, secenekleriTopla } from '../lib/filtre';
+import { digerDil, metinler, yayinTurAdlari, type Dil } from '../lib/metinler';
+import { yayinlariGetir } from '../lib/veri';
+import { yollar } from '../lib/yollar';
+
+interface Props {
+  dil: Dil;
+}
+
+const { dil } = Astro.props;
+const m = metinler[dil];
+const turAdi = yayinTurAdlari[dil];
+const yayinlar = await yayinlariGetir(dil);
+
+// Yazar filtresinde yalnizca ekipten yazarlar; dis yazarin kimligi yok, adi listede yazili.
+const secimler: FiltreSecimi[] = [
+  { ad: 'tur', etiket: m.tur, secenekler: secenekleriTopla(yayinlar, (y) => [{ deger: y.tur, ad: turAdi[y.tur] }]) },
+  { ad: 'alan', etiket: m.alan, secenekler: secenekleriTopla(yayinlar, (y) => y.alanlar.map((a) => ({ deger: String(a.id), ad: a.ad }))) },
+  {
+    ad: 'yazar',
+    etiket: m.yazar,
+    secenekler: secenekleriTopla(yayinlar, (y) =>
+      y.yazarlar.filter((a) => a.kisiId !== null).map((a) => ({ deger: String(a.kisiId), ad: a.ad })),
+    ),
+  },
+  { ad: 'yil', etiket: m.yil, secenekler: secenekleriTopla(yayinlar, (y) => [{ deger: String(y.yil), ad: String(y.yil) }], 'azalan') },
+  { ad: 'etiket', etiket: m.etiket, secenekler: secenekleriTopla(yayinlar, (y) => y.etiketler.map((e) => ({ deger: String(e.id), ad: e.ad }))) },
+];
+---
+
+<Temel baslik={m.yayinlar} aciklama={m.yayinlarAciklama} karsilik={yollar[digerDil(dil)].yayinlar}>
+  <KirintiYolu dil={dil} ogeler={[{ ad: m.yayinlar }]} />
+  <h1>{m.yayinlar}</h1>
+
+  <FiltreFormu dil={dil} listeId="yayin-listesi" secimler={secimler} sayiSablonu={m.yayinSayisi} sonucYok={m.yayinYok} />
+
+  <ol id="yayin-listesi" class="liste">
+    {
+      yayinlar.map((y) => (
+        <li
+          data-filtre-oge
+          data-tur={y.tur}
+          data-alan={degerler(y.alanlar.map((a) => a.id))}
+          data-yazar={degerler(y.yazarlar.flatMap((a) => (a.kisiId === null ? [] : [a.kisiId])))}
+          data-yil={y.yil}
+          data-etiket={degerler(y.etiketler.map((e) => e.id))}
+        >
+          <p class="ikincil ust-bilgi">
+            <span>{turAdi[y.tur]}</span>
+            <time datetime={isoGun(y.tarih)}>{tarihBicimle(y.tarih, dil)}</time>
+          </p>
+          <h2>
+            <a href={y.url}>{y.baslik}</a>
+          </h2>
+          {y.yazarlar.length > 0 && <p class="ikincil">{y.yazarlar.map((a) => a.ad).join(', ')}</p>}
+          {y.ozet && <p>{y.ozet}</p>}
+        </li>
+      ))
+    }
+  </ol>
+</Temel>
+
+<style>
+  .liste {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .liste li {
+    padding-block: var(--bosluk);
+    border-bottom: 1px solid var(--renk-cizgi);
+  }
+
+  .liste h2 {
+    font-size: 1.25rem;
+    margin: 0.25rem 0;
+  }
+
+  .liste p {
+    margin: 0.25rem 0;
+  }
+
+  .ust-bilgi {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.9375rem;
+  }
+</style>

@@ -17,7 +17,7 @@ const { dil, yayinlar } = Astro.props;
     yayinlar.map((y) => (
       <li>
         <span class="tur">{yayinTurAdlari[dil][y.tur]}</span>
-        <span class="baslik">{y.baslik}</span>
+        <a class="baslik" href={y.url}>{y.baslik}</a>
         <time datetime={isoGun(y.tarih)}>{tarihBicimle(y.tarih, dil)}</time>
       </li>
     ))

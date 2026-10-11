@@ -1,0 +1,102 @@
+---
+// Yayin ve karar listelerinin filtre formu. Davranis src/scripts/filtre.ts'de.
+// Form baslangicta "hidden": JS kapaliysa hic gorunmez, liste tamamen acik kalir.
+// label, select'e for/id ile bagli: sarmalayan label'da secili secenegin metni de erisilebilir
+// ada karisiyor (ornek: "Tur Tumu").
+import { metinler, type Dil } from '../lib/metinler';
+
+export interface FiltreSecimi {
+  ad: string; // select name ve listedeki data-<ad> niteligi
+  etiket: string;
+  secenekler: { deger: string; ad: string }[];
+}
+
+interface Props {
+  dil: Dil;
+  listeId: string;
+  secimler: FiltreSecimi[];
+  sayiSablonu: string;
+  sonucYok: string;
+}
+
+const { dil, listeId, secimler, sayiSablonu, sonucYok } = Astro.props;
+const m = metinler[dil];
+---
+
+<form class="filtre" data-filtre={listeId} data-sayi-sablonu={sayiSablonu} data-sonuc-yok={sonucYok} hidden>
+  <fieldset>
+    <legend>{m.filtreler}</legend>
+    <div class="secimler">
+      {
+        secimler.map((s) => (
+          <div class="secim">
+            <label for={`${listeId}-${s.ad}`}>{s.etiket}</label>
+            <select id={`${listeId}-${s.ad}`} name={s.ad}>
+              <option value="">{m.tumu}</option>
+              {s.secenekler.map((o) => (
+                <option value={o.deger}>{o.ad}</option>
+              ))}
+            </select>
+          </div>
+        ))
+      }
+      <button type="reset">{m.filtreleriTemizle}</button>
+    </div>
+  </fieldset>
+  <p class="durum" data-filtre-durum aria-live="polite"></p>
+</form>
+
+<script>
+  import '../scripts/filtre.ts';
+</script>
+
+<style>
+  .filtre {
+    margin-bottom: calc(var(--bosluk) * 1.5);
+  }
+
+  fieldset {
+    border: 1px solid var(--renk-cizgi);
+    border-radius: var(--kose);
+    padding: var(--bosluk);
+    margin: 0;
+  }
+
+  legend {
+    font-weight: 600;
+    padding-inline: 0.25rem;
+  }
+
+  .secimler {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--bosluk);
+  }
+
+  .secim {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: min(100%, 11rem);
+  }
+
+  select,
+  button {
+    font: inherit;
+    padding: 0.375rem 0.5rem;
+    border: 1px solid var(--renk-metin-ikincil);
+    border-radius: var(--kose);
+    background: var(--renk-zemin);
+    color: var(--renk-metin);
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  .durum {
+    color: var(--renk-metin-ikincil);
+    margin-block: 0.5rem 0;
+  }
+</style>

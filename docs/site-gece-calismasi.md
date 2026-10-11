@@ -19,8 +19,8 @@
 | P2 Veri modulu ve mock veri | bitti |
 | P3 Ekip | bitti |
 | P4 Calisma alanlari ve arabuluculuk | bitti |
-| P5 Yayinlar | yapilmadi (sirada) |
-| P6 Kararlar | yapilmadi |
+| P5 Yayinlar | bitti |
+| P6 Kararlar | yapilmadi (sirada) |
 | P7 Ana sayfa, hakkimizda, iletisim, yasal sayfalar | yapilmadi |
 | P8 Kalite gecisi | yapilmadi |
 | P9 Son gozden gecirme | yapilmadi |
@@ -243,6 +243,46 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 
 ---
 
+## P5 Yayinlar
+
+**Baslamadan once**
+1. Kaynak: gorev Bolum 5 P5 (tur, alan, yazar, yil, etiket filtresi; ture gore detay; PDF ekleri; yazarlar; ilgili kararlar), Bolum 3 (JS en az; JS yoksa butun liste gorunur; video icin yalnizca dis baglanti); `docs/inceleme` 6.1 (ELIG: listede alan, avukat, tarih), 7 (YouTube gomme yok).
+2. En basit yol: liste derlemede tam uretilir; kucuk bir vanilla betik yalnizca `hidden` ile gizler/gosterir. Adres cubuguna filtre yazma, sayfalama, arama yok.
+3. Yapmazsam: menudeki yayinlar bolumu eksik; profildeki ve alan sayfasindaki yayin basliklari baglantisiz kalir.
+4. Uyum: tek istemci betigi kendi sunucumuzdan (`<script type="module">`, satir ici); video gomulmez; dis baglantilar `rel="external noreferrer"` (ziyaretcinin hangi sayfadan geldigi karsi siteye gitmez).
+
+**Ne:**
+- `/yayinlar`, `/yayinlar/{slug}`, `/en/publications`, `/en/publications/{slug}`; menuye "Yayinlar" / "Publications".
+- `YayinlarSayfasi.astro` (filtreli liste), `YayinSayfasi.astro` (detay), `FiltreFormu.astro` + `src/scripts/filtre.ts` (karar listesi de kullanacak), `src/lib/filtre.ts` (secenekleri listeden toplar).
+- Detay: tur ve tarih, yazarlar (ekipten olan profile bagli, pasif kisi ve dis yazar baglantisiz; dis yazarin unvani parantezde), ozet, kitapta yayinevi/ISBN/basim yili/sayfa, videoda dis baglanti ve alan adi, haberde kaynak, icerik, PDF ekleri (`download`), calisma alanlari, etiketler, ilgili kararlar.
+- Profil ve alan sayfalarindaki kisa yayin listesi artik baglantili (P3/P4'teki gecici durum kapandi).
+
+**Neden:** inceleme 6.3 filtreleri istiyor; statik sitede filtre icin sunucu yok, en ucuz yol istemcide gizle/goster.
+
+**Nasil:**
+- Her liste ogesi `data-tur`, `data-alan`, `data-yazar`, `data-yil`, `data-etiket` tasir (bosluklu id listesi). Betik, secili her filtrenin degeri ogenin listesinde varsa ogeyi gosterir; sonucu `aria-live` ile okur ("10 yayin gosteriliyor", sitede Turkce harflerle).
+- Form HTML'de `hidden`; betik calisinca acilir. JS kapaliysa form yok, liste tam. Global CSS'te `[hidden] { display: none !important }`: bilesen stillerindeki `display` kurali `hidden`'i ezmesin.
+- Filtre secenekleri yalnizca listede kullanilan degerlerden olusur ("secince bos liste" veren secenek yok). Yazar filtresinde yalnizca ekipten yazarlar (dis yazarin kimligi yok).
+- Etiketlerin kendi sayfasi yok; etiket yalnizca filtre ve detayda metin.
+- **Ilgili kararlar bu pakette baglantisiz** (karar sayfalari P6'da).
+- Mock'taki video ve haber adresleri `example.org` / `example.net`'e alindi: site yer tutucusu `example.com` oldugu icin baglanti testi onlari ic baglanti sandi (dogru tespit).
+
+**Mimarideki yeri:** `src/pages/yayinlar/[slug].astro` -> `yayinDetaylariGetir('tr')` -> mock; cizim `YayinSayfasi.astro`. Liste: `YayinlarSayfasi.astro` -> `yayinlariGetir` + `secenekleriTopla`; tarayicida yalnizca `filtre.ts`.
+
+**Testler (P5):**
+| Dosya | Korudugu kural |
+|---|---|
+| `test/birim/filtre.test.ts` (3) | Secenekler tekrarsiz ve Turkce sirali; yillar azalan; data- deger listesi |
+| `test/cikti/yayinlar.test.ts` (12) | Taslak/incelemede/arsiv/ileri tarihli yayinin sayfasi yok ve hicbir sayfada basligi yok; TR 10, EN 4 oge; EN cevirisi hazir olmayanin EN sayfasi yok; form `hidden`; makale/kitap/video/haber/PDF gorunumleri; videoda gomme yok; pasif ve dis yazar baglantisiz; temizlenmis icerik |
+| `test/e2e/yayinlar.e2e.ts` (3) | Tur, yazar, yil, etiket, alan filtreleri ve "temizle"; sonuc yok mesaji; JS kapaliyken form gizli, liste tam, detay acilir |
+| `erisilebilirlik.e2e.ts` | axe: TR/EN liste ve bes detay turu |
+
+**Karsilasilan sorunlar:**
+- Filtre `<select>`'leri sarmalayan `<label>` icindeydi; erisilebilir ad "Tur Tumu" gibi secili secenegi de iceriyordu (e2e'de `getByLabel` iki ogeye eslesti). `label for`/`id` ile ayri baglandi.
+- Site footer testi makale icindeki `<footer>`'i yakaliyordu; test `footer class="alt"`'a daraltildi.
+
+---
+
 ## Kararlar tablosu
 
 | # | Karar | Gerekce | Kim karar verdi | Plandan sapma mi |
@@ -273,6 +313,11 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | K24 | `site/.gitignore`'a `.DS_Store` | macOS Finder dosyasi `git add site/src` ile yanlislikla girmesin | ben karar verdim | hayir |
 | K25 | Genel `[sayfa].astro` sablonu P4'te; hakkimizda ve yasal sayfalar da bununla uretiliyor | Ayni sablon P7'de yeniden yazilmasin | ben karar verdim | **evet** (P7 isinin bir kismi one alindi) |
 | K26 | Ust alan sayfasinda alt alanlarin kisileri ve yayinlari da listelenir | Mock'ta kisiler cogunlukla alt alanlara bagli; ust sayfa bos kalmasin | ben karar verdim | hayir |
+| K27 | Filtre: istemcide `hidden` ile gizle/goster; adres cubugu, sayfalama yok | En az JS; 10-15 yayin icin yeterli. Yayin sayisi yuzleri gecerse sayfalama/yil sayfalari dusunulmeli | ben karar verdim | hayir |
+| K28 | Yazar filtresinde yalnizca ekipten yazarlar | Dis yazarin kimligi (id) yok; adi listede yazili | ben karar verdim | hayir |
+| K29 | Etiket sayfasi yok | Gorev yalnizca filtre istiyor; ayri sayfa ince icerik ve fazladan adres demek | ben karar verdim | hayir |
+| K30 | Dis baglantilar `rel="external noreferrer"`, yeni sekme yok | Referer karsi siteye gitmez; yeni sekme kullaniciyi sasirtir | ben karar verdim | hayir |
+| K31 | EN yayin sayfasinda ilgili kararlar gosterilmez | Kararlar yalnizca TR (S3) | ben karar verdim | hayir |
 
 ---
 
@@ -300,6 +345,7 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | P2 | 0 hata | 236/236 | 19/19 | 5/5 |
 | P3 | 0 hata | 236/236 | 26/26 | 11/11 |
 | P4 | 0 hata | 236/236 | 32/32 | 20/20 |
+| P5 | 0 hata | 239/239 | 44/44 | 30/30 |
 
 **Bozarak dogrulanan testler:**
 | Test | Nasil bozuldu | Sonuc |
@@ -315,7 +361,9 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 
 | `alanlar.test.ts` (gizli alan) | Mock'ta Vergi Hukuku `gorunur: true` yapildi | kirmizi, geri alindi |
 
-- Son dogrulama: P4 sonu, 12 Ekim 2026 02:10 (Europe/Istanbul): check 0 hata, birim 236, cikti 32, e2e 20; hepsi yesil.
+| `yayinlar.e2e.ts` (filtre) | `filtre.ts`'de `oge.hidden = false` (hic gizleme) | iki test kirmizi, geri alindi |
+
+- Son dogrulama: P5 sonu, 12 Ekim 2026 02:20 (Europe/Istanbul): check 0 hata, birim 239, cikti 44, e2e 30; hepsi yesil.
 
 ---
 
@@ -326,6 +374,7 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 - **P2 Veri modulu ve mock veri:** Sema adlariyla birebir mock tablolar, yayin kurallarini tasiyan tek veri modulu, HTML temizleyici ve bicim yardimcilari eklendi; footer site ayarina baglandi. Kurallar birim, mock butunluk ve dist testleriyle korunuyor.
 - **P3 Ekip:** TR/EN ekip listesi ve profil sayfalari, bas harfli foto yer tutucusu ve breadcrumb eklendi; menuye Ekip girdi. Pasif kisi, gizli telefon ve "N yil" ifadesi icin dist testleri yazildi.
 - **P4 Calisma alanlari ve arabuluculuk:** Iki seviyeli alan listesi ve detay sayfalari (breadcrumb, alt alanlar, ilgili kisi ve yayinlar), sayfa tablosundan genel sabit sayfa sablonu (arabuluculuk, hakkimizda, yasal sayfalar) eklendi; menuye iki bolum girdi.
+- **P5 Yayinlar:** TR/EN filtreli yayin listesi (tur, alan, yazar, yil, etiket; JS yoksa tam liste) ve ture gore degisen detay sayfasi (makale icerigi, kitap kunyesi, video dis baglantisi, haber kaynagi, PDF ekleri, yazarlar) eklendi; profil ve alan sayfalarindaki yayinlar baglantiya dondu.
 
 ---
 
@@ -362,3 +411,7 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | 27 | `git diff --cached --name-status` | Hazirlik alaninda yalniz P4 dosyalari oldugunu kontrol etti. |
 | 28 | `git commit -m "Calisma alanlari ve arabuluculuk sayfalarini ekle" -m "..."` | P4 commit'i. |
 | 29 | `git push origin worktree-site-gece` | P4'u uzaga gonderdi. |
+| 30 | `git add docs/site-gece-calismasi.md site/src site/test` | P5 dosyalarini acik yollarla hazirlik alanina koydu. |
+| 31 | `git diff --cached --name-status` | Hazirlik alaninda yalniz P5 dosyalari oldugunu kontrol etti. |
+| 32 | `git commit -m "Yayin sayfalarini ve filtreyi ekle" -m "..."` | P5 commit'i. |
+| 33 | `git push origin worktree-site-gece` | P5'i uzaga gonderdi. |

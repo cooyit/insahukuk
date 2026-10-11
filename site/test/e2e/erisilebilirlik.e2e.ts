@@ -7,6 +7,12 @@ const SAYFALAR = [
   '/ekip', '/ekip/ayse-yilmaz', '/en/team', '/en/team/ayse-yilmaz',
   '/calisma-alanlari', '/calisma-alanlari/kamu-hukuku', '/calisma-alanlari/imar-hukuku', '/en/practice-areas/zoning-law',
   '/arabuluculuk', '/en/mediation', '/kvkk-aydinlatma-metni',
+  '/yayinlar', '/en/publications',
+  '/yayinlar/kira-bedelinin-tespiti-davalarinda-guncel-durum', // makale
+  '/yayinlar/kira-uyusmazliklarinda-arabuluculuk', // kitap
+  '/yayinlar/arabuluculuk-sureci-nasil-isler', // video
+  '/yayinlar/kira-artis-oranina-iliskin-degerlendirme', // haber
+  '/yayinlar/velayet-duzenlemesinde-cocugun-yarari', // PDF ekli
 ];
 
 test.describe('kural: WCAG 2.2 AA, ciddi ve kritik axe ihlali yok', () => {

@@ -11,7 +11,7 @@ beforeAll(() => {
 });
 
 function footer(s: Sayfa): string {
-  return s.html.match(/<footer\b[\s\S]*?<\/footer>/)?.[0] ?? '';
+  return s.html.match(/<footer class="alt"[\s\S]*?<\/footer>/)?.[0] ?? '';
 }
 
 describe('kural: her sayfanin footer bilgileri tam', () => {

@@ -52,6 +52,11 @@ img {
   height: auto;
 }
 
+/* Filtre betigi ogeleri "hidden" ile gizler; bilesenlerdeki display kurallari bunu ezmesin. */
+[hidden] {
+  display: none !important;
+}
+
 h1,
 h2,
 h3 {
@@ -147,6 +152,16 @@ a:hover {
   border: 1px solid var(--renk-cizgi);
   border-radius: var(--kose);
   text-decoration: none;
+}
+
+/* Ekranda gorunmez, ekran okuyucu okur (ornek: "Yazarlar:" etiketi). */
+.gorunmez {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 /* Kart izgarasi (ekip kartlari, alan kartlari). Dar ekranda tek sutun. */
