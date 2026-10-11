@@ -20,7 +20,9 @@ export const metinler = {
     sayfaBulunamadi: 'Sayfa bulunamadı',
     sayfaBulunamadiAciklama: 'Aradığınız sayfa taşınmış ya da kaldırılmış olabilir.',
     anaSayfayaDon: 'Ana sayfaya dön',
-    bilgilendirmeNotu: 'Bu site bilgilendirme amaçlıdır.',
+    telefon: 'Telefon',
+    eposta: 'E-posta',
+    baro: 'Baro',
   },
   en: {
     dilAdi: 'English',
@@ -30,6 +32,8 @@ export const metinler = {
     sayfaBulunamadi: 'Page not found',
     sayfaBulunamadiAciklama: 'The page you are looking for may have been moved or removed.',
     anaSayfayaDon: 'Back to home page',
-    bilgilendirmeNotu: 'This website is for information purposes only.',
+    telefon: 'Phone',
+    eposta: 'E-mail',
+    baro: 'Bar association',
   },
 } satisfies Record<Dil, Record<string, string>>;

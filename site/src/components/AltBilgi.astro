@@ -1,0 +1,48 @@
+---
+// Footer: buro unvani, adres, telefon, e-posta, baro bilgisi ve "bilgilendirme amaclidir" notu
+// (docs/inceleme-2026-10-09.md 6.3). Bilgiler site_ayar'dan gelir.
+import { telefonBicimle } from '../lib/bicim';
+import { metinler, type Dil } from '../lib/metinler';
+import type { SiteAyari } from '../lib/veri';
+
+interface Props {
+  dil: Dil;
+  ayar: SiteAyari;
+}
+
+const { dil, ayar } = Astro.props;
+const m = metinler[dil];
+---
+
+<footer class="alt">
+  <div class="kap">
+    <p class="site-adi-alt">{ayar.resmiUnvan}</p>
+    <address>
+      {ayar.adres && <span>{ayar.adres}</span>}
+      {
+        ayar.telefon && (
+          <span>
+            {m.telefon}: <a href={`tel:${ayar.telefon}`}>{telefonBicimle(ayar.telefon)}</a>
+          </span>
+        )
+      }
+      {
+        ayar.eposta && (
+          <span>
+            {m.eposta}: <a href={`mailto:${ayar.eposta}`}>{ayar.eposta}</a>
+          </span>
+        )
+      }
+    </address>
+    {ayar.barolar.length > 0 && <p>{m.baro}: {ayar.barolar.join(', ')}</p>}
+    {ayar.altBilgiNotu && <p class="not">{ayar.altBilgiNotu}</p>}
+  </div>
+</footer>
+
+<style>
+  address {
+    font-style: normal;
+    display: flex;
+    flex-direction: column;
+  }
+</style>

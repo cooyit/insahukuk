@@ -1,7 +1,9 @@
 ---
 // Butun sayfalarin ortak iskeleti: <head> (SEO), icerige atla, ust menu, dil secici, footer.
 import '../styles/global.css';
+import AltBilgi from '../components/AltBilgi.astro';
 import { dilBelirle, digerDil, metinler } from '../lib/metinler';
+import { siteAyariGetir } from '../lib/veri';
 import { menuOgeleri, temizYol, yollar } from '../lib/yollar';
 
 interface Props {
@@ -18,7 +20,8 @@ const dil = dilBelirle(Astro.currentLocale);
 const diger = digerDil(dil);
 const m = metinler[dil];
 
-const siteAdi = 'Örnek Avukatlık Bürosu';
+const ayar = await siteAyariGetir(dil);
+const siteAdi = ayar.resmiUnvan;
 const tamBaslik = `${baslik} | ${siteAdi}`;
 const yol = temizYol(Astro.url.pathname);
 const kanonik = new URL(yol, Astro.site).href;
@@ -81,11 +84,6 @@ function aktifMi(menuYolu: string): boolean {
       <slot />
     </main>
 
-    <footer class="alt">
-      <div class="kap">
-        <p class="site-adi-alt">{siteAdi}</p>
-        <p class="not">{m.bilgilendirmeNotu}</p>
-      </div>
-    </footer>
+    <AltBilgi dil={dil} ayar={ayar} />
   </body>
 </html>
