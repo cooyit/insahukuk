@@ -645,6 +645,27 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 
 ---
 
+## Commit listesi (hash'li)
+
+Hash commit'ten once bilinemedigi icin bu liste is bittikten sonra ayri bir belge commit'iyle eklendi. Bu listeyi ekleyen son commit ("Belgeye commit listesini ekle") listede yok.
+
+| Hash | Paket | Baslik |
+|---|---|---|
+| `496a5c8` | P0 | Gece calismasi belgesini ac |
+| `edcae4f` | P1 | Astro iskeletini kur |
+| `932aa09` | P2 | Veri modulu ve mock veriyi ekle |
+| `ac6d391` | P3 | Ekip sayfalarini ekle |
+| `61d09b9` | P4 | Calisma alanlari ve arabuluculuk sayfalarini ekle |
+| `e02165e` | P5 | Yayin sayfalarini ve filtreyi ekle |
+| `81a4a0b` | P6 | Karar sayfalarini ekle |
+| `29d1afa` | P7 | Ana sayfa, iletisim ve yasal sayfa baglantilarini ekle |
+| `79110a3` | P8 | Kalite gecisi: testleri butun sayfalara genislet |
+| `9d563b4` | P9 | Inceleme bulgularini duzelt ve sabah raporunu yaz |
+
+Dalin tabani: `0439ad0` (`claude/admiring-mccarthy-c1q56f`'in ucu; fast-forward ile alindi).
+
+---
+
 ## Calistirilan git komutlari
 
 | # | Komut | Aciklama |
