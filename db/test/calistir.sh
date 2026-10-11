@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# db/schema.sql'i boş bir veritabanına kurar, schema_test.sql'i çalıştırır ve
+# Directus taslağını, db/schema.sql'i ve tüm modülleri boş bir veritabanına kurar, schema_test.sql'i çalıştırır ve
 # normalleştirilmiş çıktıyı beklenen.out ile karşılaştırır.
 #
 # Kullanım:
@@ -13,7 +13,9 @@
 set -euo pipefail
 
 dizin=$(cd "$(dirname "$0")" && pwd)
+taslak="$dizin/directus_taslak.sql"   # gerçek kurulumda directus bootstrap oluşturur
 sema="$dizin/../schema.sql"
+moduller=("$dizin"/../moduller/*.sql)
 testler="$dizin/schema_test.sql"
 beklenen="$dizin/beklenen.out"
 guncelle=false
@@ -30,7 +32,9 @@ normallestir() {
 # $1: psql bağlantı argümanları, $2: etiket
 calistir() {
   local baglanti=$1 etiket=$2 cikti
-  psql -X $baglanti -v ON_ERROR_STOP=1 -q -f "$sema" >/dev/null
+  local dosyalar=(-f "$taslak" -f "$sema") m
+  for m in "${moduller[@]}"; do dosyalar+=(-f "$m"); done
+  psql -X $baglanti -v ON_ERROR_STOP=1 -q "${dosyalar[@]}" >/dev/null
   cikti=$(psql -X $baglanti -f "$testler" 2>&1 | normallestir)
   if $guncelle; then
     printf '%s\n' "$cikti" > "$beklenen"

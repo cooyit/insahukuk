@@ -1,83 +1,81 @@
 -- =====================================================================
---  İNŞA Hukuk ve Arabuluculuk — Revize veri modeli v2 (PostgreSQL 16+)
+--  İnşa Hukuk ve Arabuluculuk — veri modeli (PostgreSQL 16+, Directus 12)
 --
---  Kaynaklar ve öncelik sırası
---   1. Kaplan'ın veri modeli tablosu (9 Ekim 2026)  -> gereksinimlerin sahibi
---   2. gsi_schema.sql                               -> yapı kalıpları (çeviri tablosu, slug domain, tetikleyici)
---   3. rapor.md §9                                  -> panel, oturum, derleme kuyruğu, SEO alanları
+--  Kurulum sırası
+--   1. Boş veritabanı:     createdb insa
+--   2. Directus tabloları: npx directus bootstrap   (directus_users, directus_files ... oluşur)
+--   3. Bu dosya:           psql -X -v ON_ERROR_STOP=1 -d insa -f db/schema.sql
+--   4. İstenen modüller:   psql ... -f db/moduller/<modul>.sql
+--   5. Directus'u yeniden başlatın (yeni tabloları görsün).
+--  Testler Directus olmadan çalışır: db/test/directus_taslak.sql yalnızca iki tabloyu taklit eder.
 --
 --  Temel kararlar
---   * Adlandırma: Türkçe, YALNIZCA ASCII, snake_case, tekil tablo adı (kisi, yayin, karar).
---     Ekip tablosundaki adlar korunur; sistem sütunları da Türkçe (olusturma_zamani ...).
---   * Çok dillilik: dile bağlı metin <tablo>_ceviri tablosunda, PK (<tablo>_id, dil).
---     Dil bağımsız alanlar (tarih, durum, dosya, ilişkiler) ana tabloda tek kez durur.
---     Yayında/görünür her kaydın varsayılan dilde (tr) çevirisi olmak zorunda:
---     ertelenmiş (DEFERRABLE) kısıt tetikleyicisi, COMMIT anında kontrol eder.
---     Karar modülü (karar, mahkeme, mevzuat) yalnızca Türkçe; çeviri tablosu yok.
---     Site tek dilli açılsa bile yapı aynı kalır (yalnızca 'tr' satırı olur).
---   * Kimlik: bigint IDENTITY; dosya kimliği uuid (URL'de tahmin edilemesin).
---   * Metin: kişi adı / başlık gibi sıralanan sütunlar tr_metin domain'i (COLLATE "tr-x-icu").
---     Veritabanının varsayılan collation'ına güvenilmez; e-posta küçük harf ASCII
---     olarak saklanır (lower() Türkçe yerelde I -> ı yapar, testte gösterildi).
---   * Silme politikası:
---       - Ara tablolar sahibinden CASCADE (kisi, yayin, karar silinince bağlar gider),
---         sözlük/dosya tarafından NO ACTION (çalışma alanı, etiket, dosya kullanımdaysa silinemez).
---       - kisi ve kullanici silinmez: kisi.aktif=false, kullanici.aktif=false / anonimleştirme.
---   * PG16: UNIQUE NULLS NOT DISTINCT; üretilmiş sütun + bileşik FK ile 2 seviyeli ağaç;
---     EXCLUDE ile çakışmayan pop-up; generated tsvector ile Türkçe tam metin arama.
---   * Eklenti gerekmez (gen_random_uuid yerleşik; ICU collation PGDG/Ubuntu paketlerinde var).
+--   * Adlandırma: Türkçe, yalnızca ASCII, snake_case, tekil tablo adı (kisi, yayin, karar).
+--   * Directus uyumu: her tabloda tek sütunlu birincil anahtar (id); enum ve domain yok
+--     (Directus bunları "unknown" gösteriyor), bunların yerine text + CHECK.
+--     Kullanıcı, oturum, dosya ve değişiklik kaydı Directus'un kendi tablolarında:
+--     directus_users, directus_sessions, directus_files, directus_activity/directus_revisions.
+--   * Çok dillilik: dile bağlı metin <tablo>_ceviri tablosunda, UNIQUE (<tablo>_id, dil).
+--     Yayında/görünür her kaydın varsayılan dilde (tr) çevirisi olmak zorunda; COMMIT anında
+--     ertelenmiş kısıt tetikleyicisi denetler (Directus iç içe kaydı tek işlemde yazar).
+--     Karar modülü yalnızca Türkçe.
+--   * Zengin metin: HTML (text). Directus'un zengin metin editörü yazar; Astro derlerken temizler.
+--   * Türkçe sıralama: ad/başlık sütunları COLLATE "tr-x-icu"; veritabanı hangi yerelle kurulursa
+--     kurulsun Ç, Ğ, İ, Ö, Ş, Ü doğru yerde sıralanır.
+--   * Silme: ara tablolar sahibinden CASCADE; sözlük tarafı (çalışma alanı, etiket, mevzuat)
+--     NO ACTION: kullanımdaki kayıt silinemez, gizlenir. Dosya silinirse bağlantı NULL olur.
+--   * Şemalar: public = Directus'un yönettiği tablolar · ic = Directus'un görmediği yardımcılar.
 -- =====================================================================
 
 BEGIN;
 
+CREATE SCHEMA ic;
+COMMENT ON SCHEMA ic IS 'Directus''un görmediği yardımcı tablo ve fonksiyonlar';
+
+
 -- ---------------------------------------------------------------------
--- 0. Tipler, domain'ler, yardımcı fonksiyonlar
+-- 0. Doğrulama fonksiyonları (CHECK kısıtlarında kullanılır)
 -- ---------------------------------------------------------------------
 
--- 'incelemede': yazar rolündeki avukat içeriği onaya gönderir (Açık Sorular: "yayın için onay").
-CREATE TYPE icerik_durumu  AS ENUM ('taslak', 'incelemede', 'yayinda', 'arsiv');
-CREATE TYPE dosya_turu     AS ENUM ('gorsel', 'video', 'pdf', 'ses', 'belge');
--- yonetici: her şey + kullanıcılar/ayarlar · editor: tüm içerik + onay/yayın · yazar: yalnızca kendi içeriği
--- Yeni rol gerekirse: ALTER TYPE kullanici_rolu ADD VALUE '...'; (rol_yetki tablosuna şimdilik gerek yok)
-CREATE TYPE kullanici_rolu AS ENUM ('yonetici', 'editor', 'yazar');
-
--- URL parçası: küçük harf ASCII, rakam, tek tire. Türkçe karakter dönüşümü: slug_tr().
-CREATE DOMAIN slug AS text
-  CHECK (VALUE ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND length(VALUE) <= 120);
-
--- Türkçe sıralanan metin (Ç, Ğ, İ, Ö, Ş, Ü doğru yerde). Veritabanı C/en_US ile kurulsa da doğru sıralar.
-CREATE DOMAIN tr_metin AS text COLLATE "tr-x-icu";
-
--- E-posta: uygulama trim + toLowerCase() (yerel bağımsız) uygular; DB büyük harfi reddeder.
-CREATE DOMAIN eposta AS text
-  CHECK (VALUE ~ '^[!-~]+$' AND VALUE !~ '[A-Z]' AND VALUE ~ '^[^@]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$' AND length(VALUE) <= 254);
-
--- E.164 telefon (+905321234567). Görüntü biçimlendirmesi ön yüzde yapılır.
-CREATE DOMAIN telefon AS text CHECK (VALUE ~ '^\+[1-9][0-9]{7,14}$');
-
-CREATE DOMAIN https_url AS text CHECK (VALUE ~ '^https://[a-z0-9.-]+(:[0-9]+)?(/[^\s]*)?$' AND length(VALUE) <= 2000);
-
-CREATE DOMAIN yil AS smallint CHECK (VALUE BETWEEN 1900 AND 2100);
-
--- Türkçe başlıktan slug üretir: 'Şirketler & İmar Hukuku' -> 'sirketler-imar-hukuku'
-CREATE FUNCTION slug_tr(girdi text) RETURNS text
+-- URL parçası: küçük harf ASCII, rakam, tek tire
+CREATE FUNCTION ic.slug_gecerli(x text) RETURNS boolean
 LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
-  SELECT NULLIF(trim(BOTH '-' FROM left(
-           regexp_replace(
-             -- NFD + birleşik işaretleri at: ş, é, ñ ve JS toLowerCase('İ') = 'i̇' (i+U+0307) de çözülür
-             lower(regexp_replace(normalize(translate(girdi, 'ı', 'i'), NFD), '[\u0300-\u036f]', '', 'g') COLLATE "C"),
-             '[^a-z0-9]+', '-', 'g'),
-           120)), '')
+  SELECT x ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND length(x) <= 120
 $$;
 
--- ISBN-10 / ISBN-13 sağlama toplamı (tire ve boşluk temizlenmiş değer beklenir)
--- STRICT: NULL girdi NULL döner, böylece kitap olmayan satırlarda CHECK geçer
-CREATE FUNCTION isbn_gecerli(isbn text) RETURNS boolean
+-- Yalnızca küçük harfli, boşluksuz ASCII. lower() Türkçe yerelde I -> ı yaptığı için uygulama
+-- e-postayı yerelden bağımsız toLowerCase() ile normalleştirir; veritabanı başka biçimi reddeder.
+CREATE FUNCTION ic.eposta_gecerli(x text) RETURNS boolean
+LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+  SELECT x ~ '^[!-~]+$' AND x !~ '[A-Z]'
+     AND x ~ '^[^@]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$' AND length(x) <= 254
+$$;
+
+-- E.164 telefon: +905321234567 (görüntü biçimi ön yüzde)
+CREATE FUNCTION ic.telefon_gecerli(x text) RETURNS boolean
+LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+  SELECT x ~ '^\+[1-9][0-9]{7,14}$'
+$$;
+
+CREATE FUNCTION ic.https_url_gecerli(x text) RETURNS boolean
+LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+  SELECT x ~ '^https://[a-z0-9.-]+(:[0-9]+)?(/[^\s]*)?$' AND length(x) <= 2000
+$$;
+
+-- Site içi yol (/...) ya da https bağlantısı. '//evil', '/\evil', sekme/boşluk reddedilir:
+-- tarayıcı bunları başka bir alan adına giden bağlantı sayar.
+CREATE FUNCTION ic.baglanti_gecerli(x text) RETURNS boolean
+LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+  SELECT x ~ '^(/($|[^/])|https://)' AND x !~ '[\s\\]' AND length(x) <= 2000
+$$;
+
+-- ISBN-10 / ISBN-13 (yalnızca 978/979 önekli) sağlama toplamı; tire ve boşluk temizlenmiş değer
+CREATE FUNCTION ic.isbn_gecerli(isbn text) RETURNS boolean
 LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE AS $$
 DECLARE
   toplam int := 0;
 BEGIN
-  IF isbn ~ '^97[89][0-9]{10}$' THEN          -- ISBN-13 yalnızca 978/979 önekli (diğer EAN-13'ler kitap değil)
+  IF isbn ~ '^97[89][0-9]{10}$' THEN
     FOR i IN 1..13 LOOP
       toplam := toplam + substr(isbn, i, 1)::int * CASE WHEN i % 2 = 1 THEN 1 ELSE 3 END;
     END LOOP;
@@ -91,28 +89,16 @@ BEGIN
   RETURN false;
 END $$;
 
-CREATE FUNCTION guncelleme_zamani_ata() RETURNS trigger
-LANGUAGE plpgsql AS $$
-BEGIN
-  NEW.guncelleme_zamani := now();
-  RETURN NEW;
-END $$;
-
--- Çeviri değişince ana kaydın guncelleme_zamani'ni ilerletir (sitemap lastmod, derleme önbelleği).
--- Sözleşme: <ana>_ceviri tablosundaki FK sütunu <ana>_id adını taşır.
-CREATE FUNCTION ceviri_ust_guncelle() RETURNS trigger
-LANGUAGE plpgsql AS $$
-DECLARE
-  ana   text := left(TG_TABLE_NAME, -length('_ceviri'));
-  yeni  text := to_jsonb(NEW) ->> (ana || '_id');   -- INSERT/UPDATE
-  eski  text := to_jsonb(OLD) ->> (ana || '_id');   -- UPDATE/DELETE (çeviri başka kayda taşınırsa ikisi de)
-  tip   text := (SELECT format_type(atttypid, atttypmod) FROM pg_attribute
-                 WHERE attrelid = ana::regclass AND attname = 'id');   -- bigint ya da uuid
-BEGIN
-  EXECUTE format('UPDATE %I SET guncelleme_zamani = now() WHERE id IN ($1::%s, $2::%s)', ana, tip, tip)
-    USING yeni, eski;
-  RETURN NULL;
-END $$;
+-- Türkçe başlıktan slug: 'Şirketler & İmar Hukuku' -> 'sirketler-imar-hukuku'.
+-- NFD + birleşik işaretleri atma: ş, é, ñ ve JS'in 'İ'.toLowerCase() çıktısı (i + U+0307) da çözülür.
+CREATE FUNCTION ic.slug_tr(girdi text) RETURNS text
+LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+  SELECT NULLIF(trim(BOTH '-' FROM left(
+           regexp_replace(
+             lower(regexp_replace(normalize(translate(girdi, 'ı', 'i'), NFD), '[̀-ͯ]', '', 'g') COLLATE "C"),
+             '[^a-z0-9]+', '-', 'g'),
+           120)), '')
+$$;
 
 
 -- ---------------------------------------------------------------------
@@ -126,203 +112,87 @@ CREATE TABLE dil (
   aktif       boolean NOT NULL DEFAULT true,
   siralama    smallint NOT NULL DEFAULT 0,
   CHECK (NOT varsayilan OR aktif),
-  -- en fazla bir; ertelenmiş: UPDATE dil SET varsayilan = (kod = 'en') satır sırasından bağımsız çalışsın
+  -- en fazla bir varsayılan dil; ertelenmiş: varsayılanı tek ifadede değiştirmek satır sırasından bağımsız
   CONSTRAINT dil_tek_varsayilan EXCLUDE USING btree (varsayilan WITH =) WHERE (varsayilan)
     DEFERRABLE INITIALLY DEFERRED
 );
+COMMENT ON TABLE dil IS 'Sitenin dilleri; Directus çeviri arayüzü bu tabloyu dil listesi olarak kullanır';
 
-CREATE FUNCTION varsayilan_dil() RETURNS text
-LANGUAGE sql STABLE PARALLEL SAFE AS $$ SELECT kod FROM dil WHERE varsayilan $$;
-
--- "En az bir" kısmı: COMMIT anında tam olarak bir varsayılan dil olmalı.
--- Varsayılan dil değişirse yayındaki içeriğin yeni dilde çevirisi olmalı (ceviri_eksikleri() bölüm 13'te).
-CREATE FUNCTION dil_varsayilan_kontrol() RETURNS trigger
-LANGUAGE plpgsql AS $$
-DECLARE
-  e record;
-BEGIN
-  IF (SELECT count(*) FROM dil WHERE varsayilan) <> 1 THEN
-    RAISE EXCEPTION 'tam olarak bir varsayılan dil olmalı' USING ERRCODE = 'check_violation';
-  END IF;
-  SELECT * INTO e FROM ceviri_eksikleri() LIMIT 1;
-  IF FOUND THEN
-    RAISE EXCEPTION 'varsayılan dil (%) değişikliği reddedildi: % #% bu dilde çevirisiz',
-      varsayilan_dil(), e.ana, e.ana_id USING ERRCODE = 'check_violation';
-  END IF;
-  RETURN NULL;
-END $$;
-CREATE CONSTRAINT TRIGGER dil_varsayilan_zorunlu
-  AFTER INSERT OR UPDATE OR DELETE ON dil
-  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION dil_varsayilan_kontrol();
+CREATE FUNCTION ic.varsayilan_dil() RETURNS text
+LANGUAGE sql STABLE PARALLEL SAFE AS $$ SELECT kod FROM public.dil WHERE varsayilan $$;
 
 INSERT INTO dil (kod, ad, varsayilan, siralama) VALUES ('tr', 'Türkçe', true, 1), ('en', 'English', false, 2);
 
 
 -- ---------------------------------------------------------------------
--- 2. Panel kullanıcıları ve oturumlar (kisi FK'si kisi tablosundan sonra eklenir)
--- ---------------------------------------------------------------------
-
-CREATE TABLE kullanici (
-  id                      bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  kisi_id                 bigint UNIQUE,              -- 1-1; NULL = teknik hesap (geliştirici)
-  eposta                  eposta NOT NULL UNIQUE,     -- küçük harf saklandığı için düz UNIQUE yeter
-  gorunen_ad              tr_metin NOT NULL,
-  sifre_hash              text CHECK (sifre_hash ~ '^\$argon2id\$'),  -- NULL = giriş kapalı / anonimleştirildi
-  rol                     kullanici_rolu NOT NULL DEFAULT 'yazar',
-  totp_gizli              bytea,                      -- uygulama tarafında şifreli
-  aktif                   boolean NOT NULL DEFAULT true,
-  basarisiz_giris_sayisi  smallint NOT NULL DEFAULT 0 CHECK (basarisiz_giris_sayisi >= 0),
-  kilit_bitis             timestamptz,                -- kademeli bekleme (rapor §9.1)
-  son_giris_zamani        timestamptz,
-  olusturma_zamani        timestamptz NOT NULL DEFAULT now(),
-  guncelleme_zamani       timestamptz NOT NULL DEFAULT now(),
-  CHECK (NOT aktif OR sifre_hash IS NOT NULL),
-  CHECK (rol <> 'yazar' OR kisi_id IS NOT NULL)       -- yazar = ekipteki bir avukat/arabulucu
-);
-
-CREATE TABLE oturum (
-  token_hash          bytea PRIMARY KEY CHECK (octet_length(token_hash) = 32),  -- sha256(çerez); çerez saklanmaz
-  kullanici_id        bigint NOT NULL REFERENCES kullanici(id) ON DELETE CASCADE,
-  olusturma_zamani    timestamptz NOT NULL DEFAULT now(),
-  son_kullanma        timestamptz NOT NULL,
-  kullanici_araci     text CHECK (length(kullanici_araci) <= 400),
-  -- KVKK: HMAC-SHA256(ip, sunucu_gizli_anahtari) — uygulamada hesaplanır, anahtar dönemsel değişir.
-  -- Düz sha256(ip) KULLANMAYIN: IPv4 uzayı küçük, testte /16 blok 0,1 sn'de geri çevrildi.
-  ip_hmac             bytea CHECK (octet_length(ip_hmac) = 32),
-  CHECK (son_kullanma > olusturma_zamani AND son_kullanma <= olusturma_zamani + interval '24 hours')
-);
-CREATE INDEX oturum_kullanici_idx     ON oturum (kullanici_id);
-CREATE INDEX oturum_son_kullanma_idx  ON oturum (son_kullanma);
-
-
--- ---------------------------------------------------------------------
--- 3. Dosyalar (ekip tablosundaki "dosya")
--- ---------------------------------------------------------------------
-
-CREATE TABLE dosya (
-  id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tur                dosya_turu NOT NULL,
-  -- genel: statik siteye kopyalanır · ozel: yalnızca oturumlu API'den (CV, anonimleştirilmemiş karar)
-  erisim             text NOT NULL DEFAULT 'genel' CHECK (erisim IN ('genel', 'ozel')),
-  depolama_anahtari  text NOT NULL UNIQUE,            -- 2026/10/<uuid>.webp
-  orijinal_ad        text NOT NULL,
-  mime_tur           text NOT NULL CHECK (mime_tur ~ '^[a-z]+/[a-z0-9.+-]+$' AND mime_tur <> 'image/svg+xml'),
-  boyut              bigint NOT NULL CHECK (boyut > 0),
-  sha256             bytea NOT NULL CHECK (octet_length(sha256) = 32),
-  genislik           integer CHECK (genislik > 0),
-  yukseklik          integer CHECK (yukseklik > 0),
-  sure_saniye        integer CHECK (sure_saniye >= 0),
-  yukleyen_id        bigint REFERENCES kullanici(id),
-  olusturma_zamani   timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (id, erisim),                                -- basvuru.cv için bileşik FK hedefi
-  CHECK (CASE tur
-           WHEN 'gorsel' THEN mime_tur LIKE 'image/%'
-           WHEN 'video'  THEN mime_tur LIKE 'video/%'
-           WHEN 'ses'    THEN mime_tur LIKE 'audio/%'
-           WHEN 'pdf'    THEN mime_tur = 'application/pdf'
-           ELSE true END),
-  CHECK (tur NOT IN ('gorsel', 'video') OR (genislik IS NOT NULL AND yukseklik IS NOT NULL))
-);
-CREATE INDEX dosya_sha256_idx ON dosya (sha256);
-
-CREATE TABLE dosya_ceviri (
-  dosya_id   uuid NOT NULL REFERENCES dosya(id) ON DELETE CASCADE,
-  dil        text NOT NULL REFERENCES dil(kod),
-  alt_metin  text CHECK (length(alt_metin) <= 250),
-  aciklama   text,
-  PRIMARY KEY (dosya_id, dil)
-);
-
-
--- ---------------------------------------------------------------------
--- 4. Çalışma alanları — iki seviyeli ağaç (Kamu hukuku > Ceza, İmar)
---    Seviye kuralı tetikleyicisiz: üretilmiş sütun + bileşik öz-FK.
---    Alt alanın üstü yalnızca seviye 1 olabilir; altı olan kök alt alana dönüştürülemez.
+-- 2. Çalışma alanları — iki seviyeli ağaç (Kamu hukuku > Ceza, İmar)
 -- ---------------------------------------------------------------------
 
 CREATE TABLE calisma_alani (
-  id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  ust_alan_id        bigint,
-  seviye             smallint GENERATED ALWAYS AS (CASE WHEN ust_alan_id IS NULL THEN 1 ELSE 2 END) STORED,
-  ust_seviye         smallint GENERATED ALWAYS AS (CASE WHEN ust_alan_id IS NOT NULL THEN 1 END) STORED,
+  id                 integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  ust_alan_id        integer REFERENCES calisma_alani(id),        -- NULL = üst alan
   siralama           smallint NOT NULL DEFAULT 0,
-  gorsel_dosya_id    uuid REFERENCES dosya(id),
-  gorunur            boolean NOT NULL DEFAULT true,
+  gorsel             uuid REFERENCES directus_files(id) ON DELETE SET NULL,
+  gorunur            boolean NOT NULL DEFAULT true,               -- silmek yerine gizlenir
   olusturma_zamani   timestamptz NOT NULL DEFAULT now(),
   guncelleme_zamani  timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (id, seviye),
-  FOREIGN KEY (ust_alan_id, ust_seviye) REFERENCES calisma_alani (id, seviye),
   CHECK (ust_alan_id <> id)
 );
 CREATE INDEX calisma_alani_ust_idx ON calisma_alani (ust_alan_id, siralama);
 
 CREATE TABLE calisma_alani_ceviri (
-  calisma_alani_id  bigint NOT NULL REFERENCES calisma_alani(id) ON DELETE CASCADE,
+  id                integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  calisma_alani_id  integer NOT NULL REFERENCES calisma_alani(id) ON DELETE CASCADE,
   dil               text NOT NULL REFERENCES dil(kod),
-  slug              slug NOT NULL,
-  ad                tr_metin NOT NULL CHECK (length(ad) <= 120),
-  ozet              text CHECK (length(ozet) <= 300),
-  icerik            jsonb CHECK (jsonb_typeof(icerik) = 'object'),   -- alanın kendi sayfası (Soru 18)
+  slug              text NOT NULL CHECK (ic.slug_gecerli(slug)),
+  ad                text COLLATE "tr-x-icu" NOT NULL CHECK (length(ad) <= 120),
+  ozet              text CHECK (length(ozet) <= 300),             -- kartta görünen tek cümle
+  icerik            text,                                         -- alanın kendi sayfası (HTML)
   seo_baslik        text CHECK (length(seo_baslik) <= 70),
   seo_aciklama      text CHECK (length(seo_aciklama) <= 170),
-  PRIMARY KEY (calisma_alani_id, dil),
-  UNIQUE (dil, slug)
-);
-
--- Opsiyonel (Lexist): sektör listesi
-CREATE TABLE sektor (
-  id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  siralama           smallint NOT NULL DEFAULT 0,
-  gorunur            boolean NOT NULL DEFAULT true,
-  olusturma_zamani   timestamptz NOT NULL DEFAULT now(),
-  guncelleme_zamani  timestamptz NOT NULL DEFAULT now()
-);
-CREATE TABLE sektor_ceviri (
-  sektor_id  bigint NOT NULL REFERENCES sektor(id) ON DELETE CASCADE,
-  dil        text NOT NULL REFERENCES dil(kod),
-  slug       slug NOT NULL,
-  ad         tr_metin NOT NULL,
-  aciklama   text,
-  PRIMARY KEY (sektor_id, dil),
+  UNIQUE (calisma_alani_id, dil),
   UNIQUE (dil, slug)
 );
 
 
 -- ---------------------------------------------------------------------
--- 5. Ekip: unvan, kisi, telefon, eğitim, deneyim, firma
+-- 3. Ekip: unvan, kişi, telefon, eğitim, deneyim
 -- ---------------------------------------------------------------------
 
 CREATE TABLE unvan (
-  id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  kod                slug NOT NULL UNIQUE,                    -- 'kurucu-ortak', 'ortak', 'avukat', 'stajyer-avukat'
-  sira               smallint NOT NULL,
+  id                 integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  kod                text NOT NULL UNIQUE CHECK (ic.slug_gecerli(kod)),   -- 'kurucu-ortak', 'avukat'
+  sira               smallint NOT NULL,                                    -- ekip sayfasındaki sıra
   olusturma_zamani   timestamptz NOT NULL DEFAULT now(),
   guncelleme_zamani  timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT unvan_sira_tekil UNIQUE (sira) DEFERRABLE INITIALLY DEFERRED  -- sıra takası tek işlemde yapılabilsin
+  CONSTRAINT unvan_sira_tekil UNIQUE (sira) DEFERRABLE INITIALLY DEFERRED     -- sıra takası tek işlemde
 );
 CREATE TABLE unvan_ceviri (
-  unvan_id  bigint NOT NULL REFERENCES unvan(id) ON DELETE CASCADE,
+  id        integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  unvan_id  integer NOT NULL REFERENCES unvan(id) ON DELETE CASCADE,
   dil       text NOT NULL REFERENCES dil(kod),
-  ad        tr_metin NOT NULL CHECK (length(ad) <= 80),        -- "Kurucu Ortak" / "Founding Partner"
-  PRIMARY KEY (unvan_id, dil)
+  ad        text COLLATE "tr-x-icu" NOT NULL CHECK (length(ad) <= 80),     -- "Kurucu Ortak" / "Founding Partner"
+  UNIQUE (unvan_id, dil)
 );
 
 CREATE TABLE kisi (
-  id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  slug                slug NOT NULL UNIQUE,                    -- ad dile göre değişmez
-  ad                  tr_metin NOT NULL,
-  soyad               tr_metin NOT NULL,
-  unvan_id            bigint REFERENCES unvan(id),
-  foto_dosya_id       uuid REFERENCES dosya(id),
-  eposta              eposta UNIQUE,                           -- tek e-posta (ekip notu)
-  avukat_mi           boolean NOT NULL DEFAULT false,          -- aynı kişi hem avukat hem arabulucu olabilir
+  id                  integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  slug                text NOT NULL UNIQUE CHECK (ic.slug_gecerli(slug)),  -- /ekip/{slug}; ad dile göre değişmez
+  ad                  text COLLATE "tr-x-icu" NOT NULL,
+  soyad               text COLLATE "tr-x-icu" NOT NULL,
+  unvan_id            integer REFERENCES unvan(id),
+  foto                uuid REFERENCES directus_files(id) ON DELETE SET NULL,
+  eposta              text UNIQUE CHECK (ic.eposta_gecerli(eposta)),
+  avukat_mi           boolean NOT NULL DEFAULT false,      -- aynı kişi hem avukat hem arabulucu olabilir
   arabulucu_mu        boolean NOT NULL DEFAULT false,
-  baro_adi            tr_metin,                                -- Soru: sicil gösterilecek mi? (Beklemede)
+  baro_adi            text COLLATE "tr-x-icu",
   baro_sicil_no       text CHECK (baro_sicil_no ~ '^[0-9]{1,8}$'),
   arabulucu_sicil_no  text CHECK (arabulucu_sicil_no ~ '^[0-9]{1,8}$'),
-  linkedin_url        https_url,
-  aktif               boolean NOT NULL DEFAULT true,           -- ayrılanlar silinmez
-  siralama            smallint NOT NULL DEFAULT 0,             -- aynı unvan içinde sıra
+  linkedin_url        text CHECK (ic.https_url_gecerli(linkedin_url)),
+  -- Panel hesabı: "avukat yalnızca kendi profilini/içeriğini düzenler" yetkisi bu bağla kurulur
+  kullanici           uuid UNIQUE REFERENCES directus_users(id) ON DELETE SET NULL,
+  aktif               boolean NOT NULL DEFAULT true,       -- ayrılanlar silinmez, aktif=false
+  siralama            smallint NOT NULL DEFAULT 0,         -- aynı unvan içinde sıra
   olusturma_zamani    timestamptz NOT NULL DEFAULT now(),
   guncelleme_zamani   timestamptz NOT NULL DEFAULT now(),
   CHECK (baro_sicil_no IS NULL OR (avukat_mi AND baro_adi IS NOT NULL)),
@@ -331,49 +201,42 @@ CREATE TABLE kisi (
 CREATE INDEX kisi_unvan_idx ON kisi (unvan_id);
 CREATE INDEX kisi_ekip_sirasi_idx ON kisi (siralama, soyad, ad) WHERE aktif;
 
-ALTER TABLE kullanici ADD FOREIGN KEY (kisi_id) REFERENCES kisi(id);
-
 CREATE TABLE kisi_ceviri (
-  kisi_id          bigint NOT NULL REFERENCES kisi(id) ON DELETE CASCADE,
+  id               integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  kisi_id          integer NOT NULL REFERENCES kisi(id) ON DELETE CASCADE,
   dil              text NOT NULL REFERENCES dil(kod),
   kisa_biyografi   text CHECK (length(kisa_biyografi) <= 300),
-  biyografi        jsonb CHECK (jsonb_typeof(biyografi) = 'object'),
+  biyografi        text,                                     -- HTML
   seo_baslik       text CHECK (length(seo_baslik) <= 70),
   seo_aciklama     text CHECK (length(seo_aciklama) <= 170),
-  PRIMARY KEY (kisi_id, dil)
+  UNIQUE (kisi_id, dil)
 );
 
 CREATE TABLE kisi_telefon (
-  id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  kisi_id         bigint NOT NULL REFERENCES kisi(id) ON DELETE CASCADE,
-  tur             text NOT NULL CHECK (tur IN ('dahili', 'cep', 'sabit')),
-  numara          text NOT NULL,
-  sitede_goster   boolean NOT NULL DEFAULT false,              -- KVKK: kişisel cep varsayılan gizli
-  sira            smallint NOT NULL DEFAULT 0,
+  id             integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  kisi_id        integer NOT NULL REFERENCES kisi(id) ON DELETE CASCADE,
+  tur            text NOT NULL CHECK (tur IN ('dahili', 'cep', 'sabit')),
+  numara         text NOT NULL,
+  sitede_goster  boolean NOT NULL DEFAULT false,              -- KVKK: kişisel cep varsayılan gizli
+  sira           smallint NOT NULL DEFAULT 0,
   UNIQUE (kisi_id, tur, numara),
-  CHECK (CASE WHEN tur = 'dahili' THEN numara ~ '^[0-9]{2,6}$'
-              ELSE numara ~ '^\+[1-9][0-9]{7,14}$' END)
+  CHECK (CASE WHEN tur = 'dahili' THEN numara ~ '^[0-9]{2,6}$' ELSE ic.telefon_gecerli(numara) END)
 );
+CREATE INDEX kisi_telefon_kisi_idx ON kisi_telefon (kisi_id);
 
 CREATE TABLE kisi_calisma_alani (
-  kisi_id           bigint NOT NULL REFERENCES kisi(id) ON DELETE CASCADE,
-  calisma_alani_id  bigint NOT NULL REFERENCES calisma_alani(id),
-  PRIMARY KEY (kisi_id, calisma_alani_id)
+  id                integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  kisi_id           integer NOT NULL REFERENCES kisi(id) ON DELETE CASCADE,
+  calisma_alani_id  integer NOT NULL REFERENCES calisma_alani(id),
+  UNIQUE (kisi_id, calisma_alani_id)
 );
 CREATE INDEX kisi_calisma_alani_alan_idx ON kisi_calisma_alani (calisma_alani_id);
 
-CREATE TABLE kisi_sektor (
-  kisi_id    bigint NOT NULL REFERENCES kisi(id) ON DELETE CASCADE,
-  sektor_id  bigint NOT NULL REFERENCES sektor(id),
-  PRIMARY KEY (kisi_id, sektor_id)
-);
-CREATE INDEX kisi_sektor_sektor_idx ON kisi_sektor (sektor_id);
-
 CREATE TABLE egitim (
-  id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  kisi_id            bigint NOT NULL REFERENCES kisi(id) ON DELETE CASCADE,
-  baslangic_yili     yil,
-  bitis_yili         yil,
+  id                 integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  kisi_id            integer NOT NULL REFERENCES kisi(id) ON DELETE CASCADE,
+  baslangic_yili     smallint CHECK (baslangic_yili BETWEEN 1900 AND 2100),
+  bitis_yili         smallint CHECK (bitis_yili BETWEEN 1900 AND 2100),
   sira               smallint NOT NULL DEFAULT 0,
   olusturma_zamani   timestamptz NOT NULL DEFAULT now(),
   guncelleme_zamani  timestamptz NOT NULL DEFAULT now(),
@@ -381,165 +244,124 @@ CREATE TABLE egitim (
 );
 CREATE INDEX egitim_kisi_idx ON egitim (kisi_id, sira);
 CREATE TABLE egitim_ceviri (
-  egitim_id  bigint NOT NULL REFERENCES egitim(id) ON DELETE CASCADE,
+  id         integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  egitim_id  integer NOT NULL REFERENCES egitim(id) ON DELETE CASCADE,
   dil        text NOT NULL REFERENCES dil(kod),
-  okul_adi   tr_metin NOT NULL,                                -- serbest metin (okul listesi istenmedi)
-  bolum_adi  tr_metin,
-  derece     text,                                             -- "Lisans", "LL.M."
-  PRIMARY KEY (egitim_id, dil)
-);
-
--- Beklemede: deneyimdeki firmaların logosu gösterilecekse kullanılır
-CREATE TABLE firma (
-  id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  ad                 tr_metin NOT NULL UNIQUE,
-  logo_dosya_id      uuid REFERENCES dosya(id),
-  web_sitesi         https_url,
-  olusturma_zamani   timestamptz NOT NULL DEFAULT now(),
-  guncelleme_zamani  timestamptz NOT NULL DEFAULT now()
+  okul_adi   text COLLATE "tr-x-icu" NOT NULL,               -- serbest metin (okul listesi istenmedi)
+  bolum_adi  text COLLATE "tr-x-icu",
+  derece     text,                                           -- "Lisans", "Yüksek Lisans", "LL.M."
+  UNIQUE (egitim_id, dil)
 );
 
 CREATE TABLE deneyim (
-  id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  kisi_id            bigint NOT NULL REFERENCES kisi(id) ON DELETE CASCADE,
-  firma_id           bigint REFERENCES firma(id),
-  firma_adi          tr_metin,                                 -- logo gerekmiyorsa serbest metin
-  baslangic_yili     yil,
-  bitis_yili         yil,                                      -- NULL = halen
+  id                 integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  kisi_id            integer NOT NULL REFERENCES kisi(id) ON DELETE CASCADE,
+  firma_adi          text COLLATE "tr-x-icu" NOT NULL,        -- düz metin; logo yok (reklam yasağı, bkz. VERI_MODELI.md)
+  baslangic_yili     smallint CHECK (baslangic_yili BETWEEN 1900 AND 2100),
+  bitis_yili         smallint CHECK (bitis_yili BETWEEN 1900 AND 2100),   -- NULL = halen
   sira               smallint NOT NULL DEFAULT 0,
   olusturma_zamani   timestamptz NOT NULL DEFAULT now(),
   guncelleme_zamani  timestamptz NOT NULL DEFAULT now(),
-  CHECK (num_nonnulls(firma_id, firma_adi) = 1),
   CHECK (bitis_yili IS NULL OR baslangic_yili IS NULL OR bitis_yili >= baslangic_yili)
 );
-CREATE INDEX deneyim_kisi_idx  ON deneyim (kisi_id, sira);
-CREATE INDEX deneyim_firma_idx ON deneyim (firma_id);
+CREATE INDEX deneyim_kisi_idx ON deneyim (kisi_id, sira);
 CREATE TABLE deneyim_ceviri (
-  deneyim_id  bigint NOT NULL REFERENCES deneyim(id) ON DELETE CASCADE,
+  id          integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  deneyim_id  integer NOT NULL REFERENCES deneyim(id) ON DELETE CASCADE,
   dil         text NOT NULL REFERENCES dil(kod),
-  pozisyon    tr_metin NOT NULL,
+  pozisyon    text COLLATE "tr-x-icu" NOT NULL,
   aciklama    text,
-  PRIMARY KEY (deneyim_id, dil)
+  UNIQUE (deneyim_id, dil)
 );
 
 
 -- ---------------------------------------------------------------------
--- 6. Etiket ve bülten sayısı
+-- 4. Etiketler
 -- ---------------------------------------------------------------------
 
 CREATE TABLE etiket (
-  id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id                 integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
   olusturma_zamani   timestamptz NOT NULL DEFAULT now(),
   guncelleme_zamani  timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE etiket_ceviri (
-  etiket_id  bigint NOT NULL REFERENCES etiket(id) ON DELETE CASCADE,
+  id         integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  etiket_id  integer NOT NULL REFERENCES etiket(id) ON DELETE CASCADE,
   dil        text NOT NULL REFERENCES dil(kod),
-  slug       slug NOT NULL,
-  ad         tr_metin NOT NULL CHECK (length(ad) <= 60),
-  PRIMARY KEY (etiket_id, dil),
-  UNIQUE (dil, slug)
-);
-
--- Opsiyonel (GSI Articletter benzeri). Mevsimsiz (yıllık) sayıda donem NULL;
--- NULLS NOT DISTINCT olmadan aynı yıl için iki "yıllık" sayı girilebiliyordu (GSI testi T01).
-CREATE TABLE bulten_sayisi (
-  id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  yil                yil NOT NULL,
-  donem              text CHECK (donem IN ('kis', 'ilkbahar', 'yaz', 'sonbahar')),
-  kapak_dosya_id     uuid REFERENCES dosya(id),
-  pdf_dosya_id       uuid REFERENCES dosya(id),
-  durum              icerik_durumu NOT NULL DEFAULT 'taslak',
-  yayin_tarihi       timestamptz,
-  olusturma_zamani   timestamptz NOT NULL DEFAULT now(),
-  guncelleme_zamani  timestamptz NOT NULL DEFAULT now(),
-  UNIQUE NULLS NOT DISTINCT (yil, donem),
-  CHECK (durum <> 'yayinda' OR yayin_tarihi IS NOT NULL)
-);
-CREATE TABLE bulten_sayisi_ceviri (
-  bulten_sayisi_id  bigint NOT NULL REFERENCES bulten_sayisi(id) ON DELETE CASCADE,
-  dil               text NOT NULL REFERENCES dil(kod),
-  slug              slug NOT NULL,
-  baslik            tr_metin NOT NULL,                         -- "2026 Kış Sayısı"
-  PRIMARY KEY (bulten_sayisi_id, dil),
+  slug       text NOT NULL CHECK (ic.slug_gecerli(slug)),
+  ad         text COLLATE "tr-x-icu" NOT NULL CHECK (length(ad) <= 60),
+  UNIQUE (etiket_id, dil),
   UNIQUE (dil, slug)
 );
 
 
 -- ---------------------------------------------------------------------
--- 7. Yayınlar: makale, kitap, video, haber, duyuru — tek tablo + tur
+-- 5. Yayınlar: makale, kitap, video, haber, duyuru — tek tablo + tur
 -- ---------------------------------------------------------------------
 
 CREATE TABLE yayin (
-  id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id                 integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
   tur                text NOT NULL CHECK (tur IN ('makale', 'kitap', 'video', 'haber', 'duyuru')),
-  durum              icerik_durumu NOT NULL DEFAULT 'taslak',
-  yayin_tarihi       timestamptz,                              -- ileri tarih = zamanlanmış yayın
-  kapak_dosya_id     uuid REFERENCES dosya(id),
-  bulten_sayisi_id   bigint REFERENCES bulten_sayisi(id),
+  -- incelemede: yazar onaya gönderdi · yayinda: sitede · arsiv: siteden kaldırıldı
+  durum              text NOT NULL DEFAULT 'taslak' CHECK (durum IN ('taslak', 'incelemede', 'yayinda', 'arsiv')),
+  yayin_tarihi       timestamptz,                         -- ileri tarih = zamanlanmış yayın
+  kapak              uuid REFERENCES directus_files(id) ON DELETE SET NULL,
   -- kitap
-  yayinevi           tr_metin,
-  isbn               text CHECK (isbn_gecerli(isbn)),          -- tiresiz saklanır: 9786051234567
-  basim_yili         yil,
+  yayinevi           text COLLATE "tr-x-icu",
+  isbn               text CHECK (ic.isbn_gecerli(isbn)),  -- tiresiz: 9786051234567
+  basim_yili         smallint CHECK (basim_yili BETWEEN 1900 AND 2100),
   sayfa_sayisi       smallint CHECK (sayfa_sayisi > 0),
-  -- video (YouTube vb. dış bağlantı ya da kendi dosyası; YouTube = yurt dışı aktarım + çerez, tıkla-yükle önerilir)
-  video_url          https_url,
-  video_dosya_id     uuid REFERENCES dosya(id),
+  -- video: dış bağlantı (YouTube = yurt dışı aktarım + çerez; tıkla-yükle) ya da kendi dosyası
+  video_url          text CHECK (ic.https_url_gecerli(video_url)),
+  video_dosyasi      uuid REFERENCES directus_files(id) ON DELETE SET NULL,
   -- haber: başka mecrada çıkan haber/röportaj
-  kaynak_adi         tr_metin,
-  kaynak_url         https_url,
-  -- SEO (rapor §9.1)
+  kaynak_adi         text COLLATE "tr-x-icu",
+  kaynak_url         text CHECK (ic.https_url_gecerli(kaynak_url)),
+  -- SEO
   noindex            boolean NOT NULL DEFAULT false,
-  kanonik_url        https_url,
-  -- sahiplik ve onay (Açık Sorular: Kullanıcı)
-  olusturan_id       bigint NOT NULL REFERENCES kullanici(id),
-  guncelleyen_id     bigint REFERENCES kullanici(id),
-  onaylayan_id       bigint REFERENCES kullanici(id),          -- yayına alan/onaylayan (editor/yonetici)
+  kanonik_url        text CHECK (ic.https_url_gecerli(kanonik_url)),
+  -- sahiplik ve onay: olusturan Directus'ta "user_created"; onaylayan yayına alan kullanıcı
+  -- (Directus akışı doldurur; kimin onaylayabileceği Directus yetkileriyle belirlenir)
+  olusturan          uuid REFERENCES directus_users(id) ON DELETE SET NULL,
+  guncelleyen        uuid REFERENCES directus_users(id) ON DELETE SET NULL,
+  onaylayan          uuid REFERENCES directus_users(id) ON DELETE SET NULL,
   onay_zamani        timestamptz,
   olusturma_zamani   timestamptz NOT NULL DEFAULT now(),
   guncelleme_zamani  timestamptz NOT NULL DEFAULT now(),
-  CHECK (durum <> 'yayinda' OR (yayin_tarihi IS NOT NULL AND onaylayan_id IS NOT NULL)),
-  CHECK ((onaylayan_id IS NULL) = (onay_zamani IS NULL)),
+  CHECK (durum <> 'yayinda' OR (yayin_tarihi IS NOT NULL AND onay_zamani IS NOT NULL)),
+  CHECK (onaylayan IS NULL OR onay_zamani IS NOT NULL),
   CHECK (tur = 'kitap' OR num_nonnulls(yayinevi, isbn, basim_yili, sayfa_sayisi) = 0),
-  CHECK (CASE WHEN tur = 'video' THEN num_nonnulls(video_url, video_dosya_id) = 1
-              ELSE num_nonnulls(video_url, video_dosya_id) = 0 END),
-  CHECK (tur = 'haber' OR num_nonnulls(kaynak_adi, kaynak_url) = 0),
-  CHECK (bulten_sayisi_id IS NULL OR tur = 'makale')
+  CHECK (CASE WHEN tur = 'video' THEN num_nonnulls(video_url, video_dosyasi) = 1
+              ELSE num_nonnulls(video_url, video_dosyasi) = 0 END),
+  CHECK (tur = 'haber' OR num_nonnulls(kaynak_adi, kaynak_url) = 0)
 );
 CREATE INDEX yayin_yayinda_idx  ON yayin (tur, yayin_tarihi DESC) WHERE durum = 'yayinda';
-CREATE INDEX yayin_olusturan_idx ON yayin (olusturan_id);
-CREATE INDEX yayin_bulten_idx    ON yayin (bulten_sayisi_id);
-
--- Görüntülenme ayrı tabloda: her sayaç artışı yayin.guncelleme_zamani'ni (sitemap lastmod) bozmasın.
--- Statik sitede sayım için ayrı bir API ucu gerekir; çerezsiz, IP saklamadan.
-CREATE TABLE yayin_sayac (
-  yayin_id      bigint PRIMARY KEY REFERENCES yayin(id) ON DELETE CASCADE,
-  goruntulenme  bigint NOT NULL DEFAULT 0 CHECK (goruntulenme >= 0)
-);
+CREATE INDEX yayin_olusturan_idx ON yayin (olusturan);
 
 CREATE TABLE yayin_ceviri (
-  yayin_id      bigint NOT NULL REFERENCES yayin(id) ON DELETE CASCADE,
+  id            integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  yayin_id      integer NOT NULL REFERENCES yayin(id) ON DELETE CASCADE,
   dil           text NOT NULL REFERENCES dil(kod),
-  hazir         boolean NOT NULL DEFAULT true,               -- false: çeviri sürüyor, sitede gösterme
-  slug          slug NOT NULL,
-  baslik        tr_metin NOT NULL CHECK (length(baslik) <= 300),
+  hazir         boolean NOT NULL DEFAULT true,            -- false: çeviri sürüyor, sitede gösterme
+  slug          text NOT NULL CHECK (ic.slug_gecerli(slug)),
+  baslik        text COLLATE "tr-x-icu" NOT NULL CHECK (length(baslik) <= 300),
   ozet          text CHECK (length(ozet) <= 1000),
-  icerik        jsonb CHECK (jsonb_typeof(icerik) = 'object'),  -- TipTap belgesi; kitap/video için boş olabilir
+  icerik        text,                                     -- HTML; kitap/video için boş olabilir
   seo_baslik    text CHECK (length(seo_baslik) <= 70),
   seo_aciklama  text CHECK (length(seo_aciklama) <= 170),
-  og_dosya_id   uuid REFERENCES dosya(id),
-  PRIMARY KEY (yayin_id, dil),
+  paylasim_gorseli uuid REFERENCES directus_files(id) ON DELETE SET NULL,  -- 1200x630 (og:image)
+  UNIQUE (yayin_id, dil),
   UNIQUE (dil, slug)
 );
 
 -- Çok yazarlı yayın; dış yazar kisi tablosuna girmez (ekip sayfasında görünmesin)
 CREATE TABLE yayin_yazar (
-  id               bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  yayin_id         bigint NOT NULL REFERENCES yayin(id) ON DELETE CASCADE,
-  kisi_id          bigint REFERENCES kisi(id),
-  dis_yazar_adi    tr_metin,
-  dis_yazar_unvan  text,                                       -- "Prof. Dr., X Üniversitesi"
-  sira             smallint NOT NULL,
+  id               integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  yayin_id         integer NOT NULL REFERENCES yayin(id) ON DELETE CASCADE,
+  kisi_id          integer REFERENCES kisi(id),
+  dis_yazar_adi    text COLLATE "tr-x-icu",
+  dis_yazar_unvan  text,                                  -- "Prof. Dr., X Üniversitesi"
+  sira             smallint NOT NULL DEFAULT 0,
   CHECK (num_nonnulls(kisi_id, dis_yazar_adi) = 1),
   CHECK (dis_yazar_unvan IS NULL OR dis_yazar_adi IS NOT NULL),
   UNIQUE (yayin_id, kisi_id),
@@ -548,331 +370,272 @@ CREATE TABLE yayin_yazar (
 CREATE INDEX yayin_yazar_kisi_idx ON yayin_yazar (kisi_id);
 
 CREATE TABLE yayin_calisma_alani (
-  yayin_id          bigint NOT NULL REFERENCES yayin(id) ON DELETE CASCADE,
-  calisma_alani_id  bigint NOT NULL REFERENCES calisma_alani(id),
-  PRIMARY KEY (yayin_id, calisma_alani_id)
+  id                integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  yayin_id          integer NOT NULL REFERENCES yayin(id) ON DELETE CASCADE,
+  calisma_alani_id  integer NOT NULL REFERENCES calisma_alani(id),
+  UNIQUE (yayin_id, calisma_alani_id)
 );
 CREATE INDEX yayin_calisma_alani_alan_idx ON yayin_calisma_alani (calisma_alani_id);
 
 CREATE TABLE yayin_etiket (
-  yayin_id   bigint NOT NULL REFERENCES yayin(id) ON DELETE CASCADE,
-  etiket_id  bigint NOT NULL REFERENCES etiket(id),
-  PRIMARY KEY (yayin_id, etiket_id)
+  id         integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  yayin_id   integer NOT NULL REFERENCES yayin(id) ON DELETE CASCADE,
+  etiket_id  integer NOT NULL REFERENCES etiket(id),
+  UNIQUE (yayin_id, etiket_id)
 );
 CREATE INDEX yayin_etiket_etiket_idx ON yayin_etiket (etiket_id);
 
-CREATE TABLE yayin_sektor (
-  yayin_id   bigint NOT NULL REFERENCES yayin(id) ON DELETE CASCADE,
-  sektor_id  bigint NOT NULL REFERENCES sektor(id),
-  PRIMARY KEY (yayin_id, sektor_id)
-);
-CREATE INDEX yayin_sektor_sektor_idx ON yayin_sektor (sektor_id);
-
+-- Yayına eklenen dosyalar (PDF vb.); dosya silinirse ek bağlantısı da gider
 CREATE TABLE yayin_dosya (
-  yayin_id  bigint NOT NULL REFERENCES yayin(id) ON DELETE CASCADE,
-  dosya_id  uuid NOT NULL REFERENCES dosya(id),
+  id        integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  yayin_id  integer NOT NULL REFERENCES yayin(id) ON DELETE CASCADE,
+  dosya     uuid NOT NULL REFERENCES directus_files(id) ON DELETE CASCADE,
   sira      smallint NOT NULL DEFAULT 0,
-  PRIMARY KEY (yayin_id, dosya_id)
+  UNIQUE (yayin_id, dosya)
 );
-CREATE INDEX yayin_dosya_dosya_idx ON yayin_dosya (dosya_id);
+CREATE INDEX yayin_dosya_dosya_idx ON yayin_dosya (dosya);
 
 
 -- ---------------------------------------------------------------------
--- 8. Kararlar (Beklemede — iskelet). Yalnızca Türkçe.
---    Açık: alan listesi, filtreler, tam metin mi dosya mı, yorum, anonimleştirme süreci.
+-- 6. Kararlar — yalnızca Türkçe. Alanlar büroyla netleşecek (Açık Sorular 29-36).
 -- ---------------------------------------------------------------------
 
--- Mahkeme > daire (iki seviye; çalışma alanı ile aynı teknik)
+-- Mahkeme > daire (iki seviye): "Yargıtay" > "3. Hukuk Dairesi"
 CREATE TABLE mahkeme (
-  id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  ust_mahkeme_id     bigint,
-  seviye             smallint GENERATED ALWAYS AS (CASE WHEN ust_mahkeme_id IS NULL THEN 1 ELSE 2 END) STORED,
-  ust_seviye         smallint GENERATED ALWAYS AS (CASE WHEN ust_mahkeme_id IS NOT NULL THEN 1 END) STORED,
-  tur                text NOT NULL CHECK (tur IN ('aym', 'yargitay', 'danistay', 'bam', 'bim',
-                                                  'ilk_derece_adli', 'ilk_derece_idari', 'uyusmazlik', 'aihm', 'diger')),
-  ad                 tr_metin NOT NULL,                        -- "Yargıtay" / "3. Hukuk Dairesi" / "İstanbul BAM"
-  kisa_ad            text,                                     -- "Y. 3. HD"
+  id                 integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  ust_mahkeme_id     integer REFERENCES mahkeme(id),
+  tur                text NOT NULL CHECK (tur IN ('aym', 'yargitay', 'danistay', 'bam', 'bim', 'ilk_derece_adli',
+                                                   'ilk_derece_idari', 'uyusmazlik', 'aihm', 'diger')),
+  ad                 text COLLATE "tr-x-icu" NOT NULL,      -- "Yargıtay" / "3. Hukuk Dairesi"
+  kisa_ad            text,                                  -- "Y. 3. HD"
   siralama           smallint NOT NULL DEFAULT 0,
   aktif              boolean NOT NULL DEFAULT true,
   olusturma_zamani   timestamptz NOT NULL DEFAULT now(),
   guncelleme_zamani  timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (id, seviye),
-  FOREIGN KEY (ust_mahkeme_id, ust_seviye) REFERENCES mahkeme (id, seviye),
-  -- PG16: kökte (üst NULL) aynı adla ikinci "Yargıtay" girilemez
-  UNIQUE NULLS NOT DISTINCT (ust_mahkeme_id, ad)
+  UNIQUE NULLS NOT DISTINCT (ust_mahkeme_id, ad),           -- kökte ikinci "Yargıtay" olamaz
+  CHECK (ust_mahkeme_id <> id)
 );
+CREATE INDEX mahkeme_ust_idx ON mahkeme (ust_mahkeme_id);
 
 CREATE TABLE mevzuat (
-  id                    bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id                    integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
   tur                   text NOT NULL CHECK (tur IN ('kanun', 'khk', 'cbk', 'tuzuk', 'yonetmelik',
-                                                     'teblig', 'uluslararasi', 'diger')),
-  numara                text,                                  -- '6098'; yönetmeliklerde çoğu zaman yok
-  ad                    tr_metin NOT NULL,                     -- 'Türk Borçlar Kanunu'
-  kisa_ad               text,                                  -- 'TBK'
+                                                    'teblig', 'uluslararasi', 'diger')),
+  numara                text,                                -- '6098'; yönetmeliklerde çoğu zaman yok
+  ad                    text COLLATE "tr-x-icu" NOT NULL,    -- 'Türk Borçlar Kanunu'
+  kisa_ad               text,                                -- 'TBK'
   resmi_gazete_tarihi   date,
-  mevzuat_url           https_url,
+  mevzuat_url           text CHECK (ic.https_url_gecerli(mevzuat_url)),
   olusturma_zamani      timestamptz NOT NULL DEFAULT now(),
   guncelleme_zamani     timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tur, numara)          -- bilerek NULLS DISTINCT: numarasız birden çok yönetmelik olabilir
 );
 
 CREATE TABLE karar (
-  id                     bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  mahkeme_id             bigint NOT NULL REFERENCES mahkeme(id),   -- daire düğümü de olabilir
+  id                     integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  mahkeme_id             integer NOT NULL REFERENCES mahkeme(id),   -- daire de seçilebilir
   esas_no                text CHECK (esas_no  ~ '^[0-9]{4}/[0-9]{1,7}$'),
   karar_no               text CHECK (karar_no ~ '^[0-9]{4}/[0-9]{1,7}$'),
   karar_tarihi           date NOT NULL CHECK (karar_tarihi >= DATE '1920-01-01'),
-  slug                   slug NOT NULL UNIQUE,                 -- 'yargitay-3-hd-2024-1234'
-  konu                   tr_metin NOT NULL,
+  slug                   text NOT NULL UNIQUE CHECK (ic.slug_gecerli(slug)),   -- 'yargitay-3-hd-e-2024-1234-k-2025-567'
+  konu                   text COLLATE "tr-x-icu" NOT NULL,
   ozet                   text,
-  tam_metin              text,                                 -- anonimleştirilmiş metin
-  tam_metin_dosya_id     uuid REFERENCES dosya(id),            -- PDF/UDF (Soru: metin mi dosya mı?)
-  ofis_davasi            boolean NOT NULL DEFAULT false,
+  tam_metin              text,                              -- anonimleştirilmiş metin (HTML)
+  tam_metin_dosyasi      uuid REFERENCES directus_files(id) ON DELETE SET NULL,  -- PDF/UDF (metin mi dosya mı?)
+  ofis_davasi            boolean NOT NULL DEFAULT false,    -- yalnızca iç bilgi; sitede gösterilmez
+  -- KVKK kapısı: anonimleştirildiği işaretlenmeden ve onaysız karar yayına alınamaz
   anonimlestirildi       boolean NOT NULL DEFAULT false,
-  -- KVKK: anonimleştirilmemiş kararın dosyası yalnızca 'ozel' olabilir (basvuru.cv ile aynı teknik;
-  -- anonimleştirildiğinde NULL olur ve bileşik FK devre dışı kalır, tek sütunlu FK varlığı denetler)
-  tam_metin_erisim       text GENERATED ALWAYS AS (CASE WHEN NOT anonimlestirildi THEN 'ozel' END) STORED,
-  anonimlestiren_id      bigint REFERENCES kullanici(id),
+  anonimlestiren         uuid REFERENCES directus_users(id) ON DELETE SET NULL,
   anonimlestirme_zamani  timestamptz,
-  durum                  icerik_durumu NOT NULL DEFAULT 'taslak',
+  durum                  text NOT NULL DEFAULT 'taslak' CHECK (durum IN ('taslak', 'incelemede', 'yayinda', 'arsiv')),
   yayin_tarihi           timestamptz,
-  olusturan_id           bigint NOT NULL REFERENCES kullanici(id),
-  guncelleyen_id         bigint REFERENCES kullanici(id),
-  onaylayan_id           bigint REFERENCES kullanici(id),
+  olusturan              uuid REFERENCES directus_users(id) ON DELETE SET NULL,
+  guncelleyen            uuid REFERENCES directus_users(id) ON DELETE SET NULL,
+  onaylayan              uuid REFERENCES directus_users(id) ON DELETE SET NULL,
   onay_zamani            timestamptz,
   olusturma_zamani       timestamptz NOT NULL DEFAULT now(),
   guncelleme_zamani      timestamptz NOT NULL DEFAULT now(),
-  arama                  tsvector GENERATED ALWAYS AS (
-                           setweight(to_tsvector('turkish', coalesce(konu, '')), 'A') ||
-                           setweight(to_tsvector('turkish', coalesce(ozet, '')), 'B') ||
-                           setweight(to_tsvector('turkish', coalesce(tam_metin, '')), 'C')) STORED,
   UNIQUE (mahkeme_id, karar_no),
-  FOREIGN KEY (tam_metin_dosya_id, tam_metin_erisim) REFERENCES dosya (id, erisim),
-  -- KVKK kapısı: anonimleştirildiği işaretlenmeden ve onaysız karar yayına alınamaz
-  CHECK (durum <> 'yayinda' OR (yayin_tarihi IS NOT NULL AND anonimlestirildi AND onaylayan_id IS NOT NULL)),
-  CHECK (anonimlestirildi = (anonimlestiren_id IS NOT NULL)),
-  CHECK ((anonimlestiren_id IS NULL) = (anonimlestirme_zamani IS NULL)),
-  CHECK ((onaylayan_id IS NULL) = (onay_zamani IS NULL))
+  CHECK (durum <> 'yayinda' OR (yayin_tarihi IS NOT NULL AND anonimlestirildi AND onay_zamani IS NOT NULL)),
+  CHECK (anonimlestirildi = (anonimlestirme_zamani IS NOT NULL)),
+  CHECK (onaylayan IS NULL OR onay_zamani IS NOT NULL)
 );
-CREATE INDEX karar_mahkeme_idx  ON karar (mahkeme_id, karar_tarihi DESC);
-CREATE INDEX karar_tarih_idx    ON karar (karar_tarihi DESC) WHERE durum = 'yayinda';
-CREATE INDEX karar_arama_idx    ON karar USING gin (arama);
+CREATE INDEX karar_mahkeme_idx ON karar (mahkeme_id, karar_tarihi DESC);
+CREATE INDEX karar_tarih_idx   ON karar (karar_tarihi DESC) WHERE durum = 'yayinda';
+
+-- Türkçe tam metin arama: sütun yerine ifade indeksi (Directus tsvector sütununu tanımıyor)
+CREATE FUNCTION ic.karar_vektoru(konu text, ozet text, tam_metin text) RETURNS tsvector
+LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
+  SELECT setweight(to_tsvector('turkish'::regconfig, coalesce(konu, '')), 'A') ||
+         setweight(to_tsvector('turkish'::regconfig, coalesce(ozet, '')), 'B') ||
+         setweight(to_tsvector('turkish'::regconfig, coalesce(tam_metin, '')), 'C')
+$$;
+CREATE INDEX karar_arama_idx ON karar USING gin (ic.karar_vektoru(konu, ozet, tam_metin));
+
+-- Yayındaki kararlarda arama: SELECT * FROM ic.karar_ara('kiracı tespit');
+CREATE FUNCTION ic.karar_ara(sorgu text) RETURNS TABLE (karar_id integer, skor real)
+LANGUAGE sql STABLE AS $$
+  SELECT k.id, ts_rank(ic.karar_vektoru(k.konu, k.ozet, k.tam_metin), q)
+  FROM public.karar k, websearch_to_tsquery('turkish'::regconfig, sorgu) q
+  WHERE k.durum = 'yayinda' AND ic.karar_vektoru(k.konu, k.ozet, k.tam_metin) @@ q
+  ORDER BY 2 DESC, k.karar_tarihi DESC
+$$;
 
 CREATE TABLE karar_mevzuat (
-  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  karar_id    bigint NOT NULL REFERENCES karar(id) ON DELETE CASCADE,
-  mevzuat_id  bigint NOT NULL REFERENCES mevzuat(id),
-  madde       text CHECK (length(madde) <= 30),                -- '49', '49/2', 'geçici 1'; NULL = kanunun bütünü
-  UNIQUE NULLS NOT DISTINCT (karar_id, mevzuat_id, madde)      -- "kanunun bütünü" bağı da bir kez
+  id          integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  karar_id    integer NOT NULL REFERENCES karar(id) ON DELETE CASCADE,
+  mevzuat_id  integer NOT NULL REFERENCES mevzuat(id),
+  madde       text CHECK (length(madde) <= 30),             -- '49', '49/2', 'geçici 1'; NULL = kanunun bütünü
+  UNIQUE NULLS NOT DISTINCT (karar_id, mevzuat_id, madde)
 );
 CREATE INDEX karar_mevzuat_mevzuat_idx ON karar_mevzuat (mevzuat_id);
 
 CREATE TABLE karar_etiket (
-  karar_id   bigint NOT NULL REFERENCES karar(id) ON DELETE CASCADE,
-  etiket_id  bigint NOT NULL REFERENCES etiket(id),
-  PRIMARY KEY (karar_id, etiket_id)
+  id         integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  karar_id   integer NOT NULL REFERENCES karar(id) ON DELETE CASCADE,
+  etiket_id  integer NOT NULL REFERENCES etiket(id),
+  UNIQUE (karar_id, etiket_id)
 );
 CREATE INDEX karar_etiket_etiket_idx ON karar_etiket (etiket_id);
 
 CREATE TABLE karar_calisma_alani (
-  karar_id          bigint NOT NULL REFERENCES karar(id) ON DELETE CASCADE,
-  calisma_alani_id  bigint NOT NULL REFERENCES calisma_alani(id),
-  PRIMARY KEY (karar_id, calisma_alani_id)
+  id                integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  karar_id          integer NOT NULL REFERENCES karar(id) ON DELETE CASCADE,
+  calisma_alani_id  integer NOT NULL REFERENCES calisma_alani(id),
+  UNIQUE (karar_id, calisma_alani_id)
 );
 CREATE INDEX karar_calisma_alani_alan_idx ON karar_calisma_alani (calisma_alani_id);
 
--- Opsiyonel (Soru: hangi avukatın davası gösterilecek mi?)
-CREATE TABLE karar_kisi (
-  karar_id  bigint NOT NULL REFERENCES karar(id) ON DELETE CASCADE,
-  kisi_id   bigint NOT NULL REFERENCES kisi(id),
-  PRIMARY KEY (karar_id, kisi_id)
-);
-CREATE INDEX karar_kisi_kisi_idx ON karar_kisi (kisi_id);
-
--- Opsiyonel (Soru: birden fazla avukat yorumu?)
-CREATE TABLE karar_yorum (
-  id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  karar_id           bigint NOT NULL REFERENCES karar(id) ON DELETE CASCADE,
-  kisi_id            bigint NOT NULL REFERENCES kisi(id),
-  icerik             jsonb NOT NULL CHECK (jsonb_typeof(icerik) = 'object'),
-  sira               smallint NOT NULL DEFAULT 0,
-  olusturma_zamani   timestamptz NOT NULL DEFAULT now(),
-  guncelleme_zamani  timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX karar_yorum_karar_idx ON karar_yorum (karar_id, sira);
-
 -- Makale <-> karar karşılıklı bağlantı
 CREATE TABLE yayin_karar (
-  yayin_id  bigint NOT NULL REFERENCES yayin(id) ON DELETE CASCADE,
-  karar_id  bigint NOT NULL REFERENCES karar(id) ON DELETE CASCADE,
-  PRIMARY KEY (yayin_id, karar_id)
+  id        integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  yayin_id  integer NOT NULL REFERENCES yayin(id) ON DELETE CASCADE,
+  karar_id  integer NOT NULL REFERENCES karar(id) ON DELETE CASCADE,
+  UNIQUE (yayin_id, karar_id)
 );
 CREATE INDEX yayin_karar_karar_idx ON yayin_karar (karar_id);
 
 
 -- ---------------------------------------------------------------------
--- 9. Sabit sayfalar (Hakkımızda, KVKK, çerez, yasal uyarı, Değerlerimiz ...)
+-- 7. Sabit sayfalar (Hakkımızda, Arabuluculuk, KVKK, çerez, yasal uyarı ...)
 -- ---------------------------------------------------------------------
 
 CREATE TABLE sayfa (
-  id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id                 integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
   anahtar            text NOT NULL UNIQUE CHECK (anahtar ~ '^[a-z0-9_]+$'),   -- 'ana_sayfa', 'hakkimizda', 'kvkk'
   aktif              boolean NOT NULL DEFAULT true,
   noindex            boolean NOT NULL DEFAULT false,
   siralama           smallint NOT NULL DEFAULT 0,
+  olusturan          uuid REFERENCES directus_users(id) ON DELETE SET NULL,
+  guncelleyen        uuid REFERENCES directus_users(id) ON DELETE SET NULL,
   olusturma_zamani   timestamptz NOT NULL DEFAULT now(),
   guncelleme_zamani  timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE sayfa_ceviri (
-  sayfa_id      bigint NOT NULL REFERENCES sayfa(id) ON DELETE CASCADE,
+  id            integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  sayfa_id      integer NOT NULL REFERENCES sayfa(id) ON DELETE CASCADE,
   dil           text NOT NULL REFERENCES dil(kod),
-  slug          slug,                                          -- ana sayfa için NULL (/tr)
-  baslik        tr_metin NOT NULL,
-  bloklar       jsonb NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(bloklar) = 'array'),
+  slug          text CHECK (ic.slug_gecerli(slug)),          -- ana sayfa için NULL
+  baslik        text COLLATE "tr-x-icu" NOT NULL,
+  icerik        text,                                        -- HTML
   seo_baslik    text CHECK (length(seo_baslik) <= 70),
   seo_aciklama  text CHECK (length(seo_aciklama) <= 170),
-  og_dosya_id   uuid REFERENCES dosya(id),
-  PRIMARY KEY (sayfa_id, dil),
-  UNIQUE NULLS NOT DISTINCT (dil, slug)                        -- her dilde tek bir kök (NULL slug) sayfa
+  paylasim_gorseli uuid REFERENCES directus_files(id) ON DELETE SET NULL,
+  UNIQUE (sayfa_id, dil),
+  UNIQUE NULLS NOT DISTINCT (dil, slug)                      -- her dilde tek bir kök (slug NULL) sayfa
 );
 
 
 -- ---------------------------------------------------------------------
--- 10. İletişim mesajları (saklama süreli) ve kariyer (opsiyonel)
+-- 8. Site ayarları — tek satırlık tablo (Directus'ta "singleton")
+-- ---------------------------------------------------------------------
+
+CREATE TABLE site_ayar (
+  id                 smallint PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  resmi_unvan        text COLLATE "tr-x-icu" NOT NULL,       -- baroya kayıtlı unvan; başlık ve künyede aynen
+  telefon            text CHECK (ic.telefon_gecerli(telefon)),
+  faks               text CHECK (ic.telefon_gecerli(faks)),
+  eposta             text CHECK (ic.eposta_gecerli(eposta)),
+  whatsapp_numarasi  text CHECK (ic.telefon_gecerli(whatsapp_numarasi)),   -- düz wa.me bağlantısı; widget yok
+  linkedin_url       text CHECK (ic.https_url_gecerli(linkedin_url)),
+  instagram_url      text CHECK (ic.https_url_gecerli(instagram_url)),
+  youtube_url        text CHECK (ic.https_url_gecerli(youtube_url)),
+  x_url              text CHECK (ic.https_url_gecerli(x_url)),
+  harita_url         text CHECK (ic.https_url_gecerli(harita_url)),       -- "Haritada aç" bağlantısı (iframe yok)
+  aydinlatma_surumu  text,                                    -- iletişim formunda gösterilen metnin sürümü
+  guncelleyen        uuid REFERENCES directus_users(id) ON DELETE SET NULL,
+  guncelleme_zamani  timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE site_ayar_ceviri (
+  id               integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  site_ayar_id     smallint NOT NULL REFERENCES site_ayar(id) ON DELETE CASCADE,
+  dil              text NOT NULL REFERENCES dil(kod),
+  adres            text,
+  alt_bilgi_notu   text,                                     -- "Bu site bilgilendirme amaçlıdır ..."
+  UNIQUE (site_ayar_id, dil)
+);
+
+
+-- ---------------------------------------------------------------------
+-- 9. İletişim mesajları (saklama süreli). Directus'ta bu koleksiyonun değişiklik kaydı
+--    (accountability) kapatılmalı; aksi halde mesajın kopyası directus_revisions'da kalır.
 -- ---------------------------------------------------------------------
 
 CREATE TABLE iletisim_mesaji (
-  id                   bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  ad                   tr_metin NOT NULL CHECK (length(ad) <= 120),
-  eposta               eposta NOT NULL,
-  telefon              telefon,
+  id                   integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  ad                   text COLLATE "tr-x-icu" NOT NULL CHECK (length(ad) <= 120),
+  eposta               text NOT NULL CHECK (ic.eposta_gecerli(eposta)),
+  telefon              text CHECK (ic.telefon_gecerli(telefon)),
   konu_turu            text NOT NULL CHECK (konu_turu IN ('genel', 'randevu', 'arabuluculuk', 'diger')),
   mesaj                text NOT NULL CHECK (length(mesaj) BETWEEN 1 AND 5000),
   durum                text NOT NULL DEFAULT 'yeni' CHECK (durum IN ('yeni', 'okundu', 'cevaplandi', 'spam')),
-  cevaplayan_kisi_id   bigint REFERENCES kisi(id),
+  cevaplayan_kisi_id   integer REFERENCES kisi(id),
   cevap_tarihi         timestamptz,
-  -- "kvkk_onay" yerine: gösterilen aydınlatma metninin sürümü (aydınlatma rıza değildir; avukat görüşü alınmalı)
+  -- "kvkk_onay" yerine gösterilen aydınlatma metninin sürümü: aydınlatma rıza değildir (2026/347)
   aydinlatma_surumu    text NOT NULL,
-  ip_hmac              bytea CHECK (octet_length(ip_hmac) = 32),   -- yalnızca spam sınırlaması için
+  ip_hmac              text CHECK (ip_hmac ~ '^[0-9a-f]{64}$'),   -- HMAC-SHA256(ip), onaltılık; yalnızca spam sınırı. Düz sha256(ip) DEĞİL
   olusturma_zamani     timestamptz NOT NULL DEFAULT now(),
-  saklama_bitis        timestamptz NOT NULL DEFAULT now() + interval '1 year',  -- süre abinlerce belirlenecek
+  saklama_bitis        timestamptz NOT NULL DEFAULT now() + interval '1 year',   -- süre büroyla belirlenecek
   CHECK (saklama_bitis > olusturma_zamani),
   CHECK (durum <> 'cevaplandi' OR (cevaplayan_kisi_id IS NOT NULL AND cevap_tarihi IS NOT NULL))
 );
 CREATE INDEX iletisim_mesaji_durum_idx   ON iletisim_mesaji (durum, olusturma_zamani DESC);
 CREATE INDEX iletisim_mesaji_saklama_idx ON iletisim_mesaji (saklama_bitis);
 
-CREATE TABLE ilan (
-  id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  calisma_tipi       text CHECK (calisma_tipi IN ('tam_zamanli', 'yari_zamanli', 'staj')),
-  lokasyon           tr_metin,
-  durum              icerik_durumu NOT NULL DEFAULT 'taslak',
-  yayin_tarihi       timestamptz,
-  kapanis_tarihi     timestamptz,
-  olusturma_zamani   timestamptz NOT NULL DEFAULT now(),
-  guncelleme_zamani  timestamptz NOT NULL DEFAULT now(),
-  CHECK (durum <> 'yayinda' OR yayin_tarihi IS NOT NULL),
-  CHECK (kapanis_tarihi IS NULL OR yayin_tarihi IS NULL OR kapanis_tarihi > yayin_tarihi)
-);
-CREATE TABLE ilan_ceviri (
-  ilan_id   bigint NOT NULL REFERENCES ilan(id) ON DELETE CASCADE,
-  dil       text NOT NULL REFERENCES dil(kod),
-  baslik    tr_metin NOT NULL,
-  aciklama  jsonb NOT NULL CHECK (jsonb_typeof(aciklama) = 'object'),
-  PRIMARY KEY (ilan_id, dil)
-);
-
--- CV kişisel veri: dosya yalnızca 'ozel' erişimli olabilir (bileşik FK + sabit üretilmiş sütun)
-CREATE TABLE basvuru (
-  id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  ilan_id            bigint REFERENCES ilan(id),               -- NULL = genel başvuru
-  ad                 tr_metin NOT NULL,
-  eposta             eposta NOT NULL,
-  telefon            telefon,
-  cv_dosya_id        uuid,
-  cv_erisim          text GENERATED ALWAYS AS ('ozel') STORED,
-  aydinlatma_surumu  text NOT NULL,
-  olusturma_zamani   timestamptz NOT NULL DEFAULT now(),
-  saklama_bitis      timestamptz NOT NULL DEFAULT now() + interval '6 months',
-  FOREIGN KEY (cv_dosya_id, cv_erisim) REFERENCES dosya (id, erisim),
-  CHECK (saklama_bitis > olusturma_zamani)
-);
-CREATE INDEX basvuru_ilan_idx    ON basvuru (ilan_id);
-CREATE INDEX basvuru_saklama_idx ON basvuru (saklama_bitis);
-CREATE INDEX basvuru_cv_idx      ON basvuru (cv_dosya_id);
-
 
 -- ---------------------------------------------------------------------
--- 11. Açılır duyuru (R&S pop-up). Ad "duyuru" değil: yayin.tur = 'duyuru' ile karışmasın.
---     Statik sitede tarih kontrolü istemci tarafında yapılır (derleme anı ≠ gösterim anı).
+-- 10. Yönlendirmeler ve derleme kuyruğu
 -- ---------------------------------------------------------------------
-
-CREATE TABLE acilir_duyuru (
-  id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  gorsel_dosya_id     uuid REFERENCES dosya(id),
-  baglanti            text CHECK (baglanti ~ '^(/($|[^/])|https://)' AND baglanti !~ '[\s\\]'),
-  baslangic           timestamptz NOT NULL,
-  bitis               timestamptz NOT NULL,
-  otomatik_kapanma_sn smallint CHECK (otomatik_kapanma_sn BETWEEN 3 AND 60),
-  aktif               boolean NOT NULL DEFAULT true,
-  olusturma_zamani    timestamptz NOT NULL DEFAULT now(),
-  guncelleme_zamani   timestamptz NOT NULL DEFAULT now(),
-  CHECK (bitis > baslangic),
-  -- Aynı anda en fazla bir aktif pop-up (eklenti gerekmez: yalnızca aralık operatörü)
-  EXCLUDE USING gist (tstzrange(baslangic, bitis) WITH &&) WHERE (aktif)
-);
-CREATE TABLE acilir_duyuru_ceviri (
-  acilir_duyuru_id  bigint NOT NULL REFERENCES acilir_duyuru(id) ON DELETE CASCADE,
-  dil               text NOT NULL REFERENCES dil(kod),
-  baslik            tr_metin NOT NULL,
-  metin             text,
-  buton_etiketi     text,
-  PRIMARY KEY (acilir_duyuru_id, dil)
-);
-
-
--- ---------------------------------------------------------------------
--- 12. Site ayarları, yönlendirme, derleme kuyruğu, değişiklik kaydı, dosya silme kuyruğu
--- ---------------------------------------------------------------------
-
--- Adres, telefon, WhatsApp, sosyal medya. Dile bağlı değer: {"tr": "...", "en": "..."}
-CREATE TABLE site_ayar (
-  anahtar            text PRIMARY KEY CHECK (anahtar ~ '^[a-z0-9_.]+$'),
-  deger              jsonb NOT NULL,
-  guncelleyen_id     bigint REFERENCES kullanici(id),
-  guncelleme_zamani  timestamptz NOT NULL DEFAULT now()
-);
 
 CREATE TABLE yonlendirme (
-  id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  kaynak_yol        text NOT NULL UNIQUE CHECK (kaynak_yol ~ '^/($|[^/])'),
-  hedef             text NOT NULL CHECK (hedef ~ '^(/($|[^/])|https://)' AND hedef !~ '[\s\\]'),  -- '//evil', '/\evil', '/<TAB>/evil' reddedilir
+  id                integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  kaynak_yol        text NOT NULL UNIQUE CHECK (kaynak_yol ~ '^/($|[^/])' AND kaynak_yol !~ '[\s\\]'),
+  hedef             text NOT NULL CHECK (ic.baglanti_gecerli(hedef)),
   durum_kodu        smallint NOT NULL DEFAULT 301 CHECK (durum_kodu IN (301, 302, 308)),
   olusturma_zamani  timestamptz NOT NULL DEFAULT now(),
   CHECK (kaynak_yol <> hedef)
 );
 -- Zincir ve döngü engeli: hedef başka bir yönlendirmenin kaynağı olamaz (ve tersi).
--- Kilit: eşzamanlı iki işlem birbirinin kaydını göremez (/a->/b ve /b->/a ikisi de geçerdi); yazanlar sıralanır,
--- READ COMMITTED'da kilit beklendikten sonraki sorgular diğer işlemin kaydını görür.
-CREATE FUNCTION yonlendirme_zincir_kontrol() RETURNS trigger
+-- Kilit: eşzamanlı iki işlem birbirinin kaydını göremezdi (/a->/b ve /b->/a ikisi de geçerdi).
+CREATE FUNCTION ic.yonlendirme_zincir_kontrol() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
   PERFORM pg_advisory_xact_lock(TG_RELID::bigint);
-  IF EXISTS (SELECT 1 FROM yonlendirme WHERE kaynak_yol = NEW.hedef AND id <> NEW.id)
-     OR EXISTS (SELECT 1 FROM yonlendirme WHERE hedef = NEW.kaynak_yol AND id <> NEW.id) THEN
+  IF EXISTS (SELECT 1 FROM public.yonlendirme WHERE kaynak_yol = NEW.hedef AND id <> NEW.id)
+     OR EXISTS (SELECT 1 FROM public.yonlendirme WHERE hedef = NEW.kaynak_yol AND id <> NEW.id) THEN
     RAISE EXCEPTION 'yönlendirme zinciri/döngüsü: % -> %', NEW.kaynak_yol, NEW.hedef
       USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;
 END $$;
 CREATE TRIGGER yonlendirme_zincir BEFORE INSERT OR UPDATE ON yonlendirme
-  FOR EACH ROW EXECUTE FUNCTION yonlendirme_zincir_kontrol();
+  FOR EACH ROW EXECUTE FUNCTION ic.yonlendirme_zincir_kontrol();
 
--- rapor §9.2 build_jobs: "Yayımla" statik derlemeyi kuyruğa ekler
+-- "Yayımla": Directus akışı kuyruğa iş ekler, sunucudaki derleme görevi sırayla çalıştırır
 CREATE TABLE derleme_isi (
-  id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  id                integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
   durum             text NOT NULL DEFAULT 'kuyrukta' CHECK (durum IN ('kuyrukta', 'calisiyor', 'basarili', 'hatali')),
-  isteyen_id        bigint REFERENCES kullanici(id),
+  isteyen           uuid REFERENCES directus_users(id) ON DELETE SET NULL,
   olusturma_zamani  timestamptz NOT NULL DEFAULT now(),
   baslama_zamani    timestamptz,
   bitis_zamani      timestamptz,
@@ -883,69 +646,107 @@ CREATE TABLE derleme_isi (
 CREATE UNIQUE INDEX derleme_isi_tek_calisan ON derleme_isi ((true)) WHERE durum = 'calisiyor';
 CREATE INDEX derleme_isi_kuyruk_idx ON derleme_isi (olusturma_zamani) WHERE durum = 'kuyrukta';
 
--- Kim neyi ne zaman değiştirdi (Açık Sorular: Kullanıcı / Düşük). Kullanıcı silinmediği için FK NO ACTION.
-CREATE TABLE degisiklik_log (
-  id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  kullanici_id      bigint REFERENCES kullanici(id),
-  eylem             text NOT NULL CHECK (eylem IN ('olustur', 'guncelle', 'sil', 'yayinla', 'yayindan_kaldir',
-                                                   'onayla', 'onaya_gonder', 'giris', 'giris_basarisiz', 'cikis',
-                                                   'rol_degistir', 'sifre_degistir', 'kisisel_veri_sil')),
-  varlik_turu       text,
-  varlik_id         text,
-  degisiklikler     jsonb,
-  olusturma_zamani  timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX degisiklik_log_varlik_idx ON degisiklik_log (varlik_turu, varlik_id);
-CREATE INDEX degisiklik_log_zaman_idx  ON degisiklik_log (olusturma_zamani);
 
--- Diskteki dosyayı uygulama siler; DB yalnızca kuyruğa yazar
-CREATE TABLE dosya_silme_kuyrugu (
-  depolama_anahtari  text PRIMARY KEY,
-  eklenme_zamani     timestamptz NOT NULL DEFAULT now()
-);
+-- ---------------------------------------------------------------------
+-- Tablo açıklamaları (psql: \dt+; db/araclar/tablo_belgesi.py belgeyi bunlardan üretir)
+-- ---------------------------------------------------------------------
+
+COMMENT ON TABLE calisma_alani IS 'Çalışma alanları; iki seviyeli ağaç (Kamu Hukuku > İmar Hukuku). Silinmez, gizlenir';
+COMMENT ON TABLE calisma_alani_ceviri IS 'Çalışma alanının dile bağlı metinleri: ad, slug, kart özeti, sayfa içeriği';
+COMMENT ON TABLE unvan IS 'Unvanlar ve ekip sayfasındaki sırası (Kurucu Ortak, Ortak, Avukat ...)';
+COMMENT ON TABLE unvan_ceviri IS 'Unvan adının dillere göre karşılığı';
+COMMENT ON TABLE kisi IS 'Ekip üyesi: avukat, arabulucu ya da stajyer. Ayrılanlar silinmez, aktif=false olur';
+COMMENT ON TABLE kisi_ceviri IS 'Kişinin dile bağlı metinleri: biyografi ve SEO alanları (isteğe bağlı)';
+COMMENT ON TABLE kisi_telefon IS 'Kişinin dahili, sabit ve cep numaraları; cep varsayılan olarak sitede gizli';
+COMMENT ON TABLE kisi_calisma_alani IS 'Kişi ile çalışma alanı arasındaki bağ (çoka çok)';
+COMMENT ON TABLE egitim IS 'Özgeçmişteki eğitim kaydı; yıllar dil bağımsız';
+COMMENT ON TABLE egitim_ceviri IS 'Eğitimin okul, bölüm ve derece metinleri';
+COMMENT ON TABLE deneyim IS 'Önceki iş deneyimi: kurum adı ve yıllar';
+COMMENT ON TABLE deneyim_ceviri IS 'Deneyimin pozisyon ve açıklama metinleri';
+COMMENT ON TABLE etiket IS 'Yayın ve kararlarda kullanılan serbest etiketler';
+COMMENT ON TABLE etiket_ceviri IS 'Etiketin dillere göre adı ve slug''ı';
+COMMENT ON TABLE yayin IS 'Makale, kitap, video, haber ve duyuru için tek tablo; türe özgü alanlar yalnızca o türde dolu olabilir';
+COMMENT ON TABLE yayin_ceviri IS 'Yayının dile bağlı metinleri: başlık, slug, özet, içerik, SEO';
+COMMENT ON TABLE yayin_yazar IS 'Yayının yazarları ve sırası: ekipten bir kişi ya da dış yazar';
+COMMENT ON TABLE yayin_calisma_alani IS 'Yayın ile çalışma alanı bağı (çoka çok)';
+COMMENT ON TABLE yayin_etiket IS 'Yayın ile etiket bağı (çoka çok)';
+COMMENT ON TABLE yayin_dosya IS 'Yayına eklenen dosyalar (PDF vb.) ve sırası';
+COMMENT ON TABLE mahkeme IS 'Mahkemeler ve daireleri; iki seviyeli ağaç (Yargıtay > 3. Hukuk Dairesi)';
+COMMENT ON TABLE mevzuat IS 'Kanun, yönetmelik vb.; kararlarda madde bağlantısı için';
+COMMENT ON TABLE karar IS 'Yargı kararları (yalnızca Türkçe). Anonimleştirme işaretlenmeden ve onaysız yayına alınamaz';
+COMMENT ON TABLE karar_mevzuat IS 'Kararın ilgili olduğu mevzuat ve madde (madde boşsa kanunun bütünü)';
+COMMENT ON TABLE karar_etiket IS 'Karar ile etiket bağı (çoka çok)';
+COMMENT ON TABLE karar_calisma_alani IS 'Karar ile çalışma alanı bağı (çoka çok)';
+COMMENT ON TABLE yayin_karar IS 'Makale ile karar arasındaki karşılıklı bağlantı';
+COMMENT ON TABLE sayfa IS 'Sabit sayfalar: ana sayfa, hakkımızda, arabuluculuk, KVKK, çerez, yasal uyarı';
+COMMENT ON TABLE sayfa_ceviri IS 'Sayfanın dile bağlı başlık, slug ve içeriği';
+COMMENT ON TABLE site_ayar IS 'Site geneli ayarlar; tek satır (Directus singleton): resmi unvan, iletişim, sosyal bağlantılar';
+COMMENT ON TABLE site_ayar_ceviri IS 'Adres ve alt bilgi notunun dillere göre metni';
+COMMENT ON TABLE iletisim_mesaji IS 'İletişim formundan gelen mesajlar; saklama süresi dolunca silinir';
+COMMENT ON TABLE yonlendirme IS 'Eski adreslerden yenilerine yönlendirmeler (301/302/308)';
+COMMENT ON TABLE derleme_isi IS '"Yayımla" ile kuyruğa eklenen site derlemeleri; aynı anda tek derleme çalışır';
+
+-- ---------------------------------------------------------------------
+-- 11. İki seviyeli ağaç kuralı (çalışma alanı, mahkeme)
+--     Alt kaydın üstü yalnızca kök olabilir; altı olan kök başka bir kaydın altına taşınamaz.
+-- ---------------------------------------------------------------------
+
+CREATE FUNCTION ic.iki_seviye_kontrol() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+  ust_sutun  text := TG_ARGV[0];
+  ust        bigint := (to_jsonb(NEW) ->> ust_sutun)::bigint;
+  ust_kok    boolean;
+  alti_var   boolean;
+BEGIN
+  IF ust IS NULL THEN
+    RETURN NEW;
+  END IF;
+  PERFORM pg_advisory_xact_lock(TG_RELID::bigint);   -- eşzamanlı iki taşıma 3. seviye oluşturamasın
+  EXECUTE format('SELECT %I IS NULL FROM %I.%I WHERE id = $1', ust_sutun, TG_TABLE_SCHEMA, TG_TABLE_NAME)
+    INTO ust_kok USING ust;
+  EXECUTE format('SELECT EXISTS (SELECT 1 FROM %I.%I WHERE %I = $1)', TG_TABLE_SCHEMA, TG_TABLE_NAME, ust_sutun)
+    INTO alti_var USING NEW.id;
+  IF NOT coalesce(ust_kok, true) OR alti_var THEN
+    RAISE EXCEPTION '% en fazla iki seviyeli olabilir (#% -> üst #%)', TG_TABLE_NAME, NEW.id, ust
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER calisma_alani_iki_seviye BEFORE INSERT OR UPDATE OF ust_alan_id ON calisma_alani
+  FOR EACH ROW EXECUTE FUNCTION ic.iki_seviye_kontrol('ust_alan_id');
+CREATE TRIGGER mahkeme_iki_seviye BEFORE INSERT OR UPDATE OF ust_mahkeme_id ON mahkeme
+  FOR EACH ROW EXECUTE FUNCTION ic.iki_seviye_kontrol('ust_mahkeme_id');
 
 
 -- ---------------------------------------------------------------------
--- 13. İş kuralı fonksiyonları
+-- 12. Çeviri kuralları ve guncelleme_zamani
 -- ---------------------------------------------------------------------
 
--- Çeviri zorunluluğu kuralları: hangi ana tabloda hangi satırlar varsayılan dil çevirisi ister.
--- kisi bilerek yok: adı dil bağımsız, kisi_ceviri yalnızca isteğe bağlı biyografi taşır.
-CREATE TABLE ceviri_kurali (
+-- Hangi tabloda hangi kayıtlar varsayılan dil çevirisi ister. kisi bilerek yok:
+-- adı dil bağımsız, kisi_ceviri yalnızca isteğe bağlı biyografi taşır.
+CREATE TABLE ic.ceviri_kurali (
   ana           text PRIMARY KEY,
   kosul         text NOT NULL,      -- ana satırda (a.)
   ceviri_kosul  text NOT NULL       -- çeviri satırında (c.)
 );
-INSERT INTO ceviri_kurali VALUES
-  ('yayin',          'a.durum = ''yayinda''', 'c.hazir'),
-  ('bulten_sayisi',  'a.durum = ''yayinda''', 'true'),
-  ('ilan',           'a.durum = ''yayinda''', 'true'),
-  ('calisma_alani',  'a.gorunur',             'true'),
-  ('sektor',         'a.gorunur',             'true'),
-  ('sayfa',          'a.aktif',               'true'),
-  ('acilir_duyuru',  'a.aktif',               'true'),
-  ('unvan',          'true',                  'true'),
-  ('egitim',         'true',                  'true'),
-  ('deneyim',        'true',                  'true'),
-  ('etiket',         'true',                  'true');
 
--- Tüm kurallara göre varsayılan dilde eksik çevirisi olan kayıtlar (CI / dil değişimi kontrolü)
-CREATE FUNCTION ceviri_eksikleri() RETURNS TABLE (ana text, ana_id bigint)
+-- Varsayılan dilde eksik çevirisi olan kayıtlar (CI ve dil değişimi kontrolü). Beklenen: boş.
+CREATE FUNCTION ic.ceviri_eksikleri() RETURNS TABLE (ana text, ana_id bigint)
 LANGUAGE plpgsql STABLE AS $$
 DECLARE
-  r ceviri_kurali;
+  r ic.ceviri_kurali;
 BEGIN
-  FOR r IN SELECT * FROM ceviri_kurali LOOP
+  FOR r IN SELECT * FROM ic.ceviri_kurali LOOP
     RETURN QUERY EXECUTE format(
-      'SELECT %1$L::text, a.id FROM %1$I a WHERE (%2$s)
-         AND NOT EXISTS (SELECT 1 FROM %3$I c WHERE c.%4$I = a.id AND c.dil = varsayilan_dil() AND (%5$s))',
+      'SELECT %1$L::text, a.id::bigint FROM public.%1$I a WHERE (%2$s)
+         AND NOT EXISTS (SELECT 1 FROM public.%3$I c WHERE c.%4$I = a.id AND c.dil = ic.varsayilan_dil() AND (%5$s))',
       r.ana, r.kosul, r.ana || '_ceviri', r.ana || '_id', r.ceviri_kosul);
   END LOOP;
 END $$;
 
--- Varsayılan dil çevirisi zorunluluğu (ertelenmiş kısıt tetikleyicisi)
---   TG_ARGV[0] ana tablo · [1] ana satırda koşul (a.) · [2] çeviri satırında koşul (c.)
-CREATE FUNCTION ceviri_zorunlu_kontrol() RETURNS trigger
+-- Ertelenmiş kısıt tetikleyicisi: TG_ARGV[0] ana tablo · [1] ana satırda koşul · [2] çeviri satırında koşul
+CREATE FUNCTION ic.ceviri_zorunlu_kontrol() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
   ana     text := TG_ARGV[0];
@@ -958,149 +759,125 @@ BEGIN
     ana_id := (to_jsonb(OLD) ->> (ana || '_id'))::bigint;
   END IF;
   EXECUTE format(
-    'SELECT EXISTS (SELECT 1 FROM %1$I a WHERE a.id = $1 AND (%2$s)
-       AND NOT EXISTS (SELECT 1 FROM %3$I c WHERE c.%4$I = a.id AND c.dil = varsayilan_dil() AND (%5$s)))',
+    'SELECT EXISTS (SELECT 1 FROM public.%1$I a WHERE a.id = $1 AND (%2$s)
+       AND NOT EXISTS (SELECT 1 FROM public.%3$I c WHERE c.%4$I = a.id AND c.dil = ic.varsayilan_dil() AND (%5$s)))',
     ana, TG_ARGV[1], ana || '_ceviri', ana || '_id', TG_ARGV[2])
   INTO eksik USING ana_id;
   IF eksik THEN
     RAISE EXCEPTION '% #% varsayılan dilde (%) hazır çeviri olmadan yayında/görünür olamaz',
-      ana, ana_id, varsayilan_dil() USING ERRCODE = 'check_violation';
+      ana, ana_id, ic.varsayilan_dil() USING ERRCODE = 'check_violation';
   END IF;
   RETURN NULL;
 END $$;
 
--- Onaylayan yalnızca aktif editor/yonetici olabilir (yazar kendi içeriğini yayına alamaz).
--- Yeniden yayına almada (taslak/arsiv -> yayinda) eski onay yeniden denetlenir: onaylayan hâlâ yetkili olmalı.
-CREATE FUNCTION onaylayan_yetki_kontrol() RETURNS trigger
+-- Kural ekler ve iki kısıt tetikleyicisini bağlar (modüller de bunu çağırır)
+CREATE FUNCTION ic.ceviri_kurali_ekle(p_ana text, p_kosul text, p_ceviri_kosul text) RETURNS void
 LANGUAGE plpgsql AS $$
 BEGIN
-  IF NEW.onaylayan_id IS NOT NULL
-     AND (TG_OP = 'INSERT' OR NEW.onaylayan_id IS DISTINCT FROM OLD.onaylayan_id OR (NEW.durum = 'yayinda' AND OLD.durum IS DISTINCT FROM 'yayinda'))
-     AND NOT EXISTS (SELECT 1 FROM kullanici k
-                     WHERE k.id = NEW.onaylayan_id AND k.aktif AND k.rol IN ('yonetici', 'editor')) THEN
-    RAISE EXCEPTION 'kullanıcı #% onay/yayın yetkisine sahip değil', NEW.onaylayan_id
-      USING ERRCODE = 'insufficient_privilege';
-  END IF;
-  RETURN NEW;
+  INSERT INTO ic.ceviri_kurali VALUES (p_ana, p_kosul, p_ceviri_kosul);
+  EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT OR UPDATE ON public.%I
+                  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+                  EXECUTE FUNCTION ic.ceviri_zorunlu_kontrol(%L, %L, %L)',
+                 p_ana || '_ceviri_zorunlu', p_ana, p_ana, p_kosul, p_ceviri_kosul);
+  EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER UPDATE OR DELETE ON public.%I
+                  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+                  EXECUTE FUNCTION ic.ceviri_zorunlu_kontrol(%L, %L, %L)',
+                 p_ana || '_ceviri_silinemez', p_ana || '_ceviri', p_ana, p_kosul, p_ceviri_kosul);
 END $$;
-CREATE TRIGGER yayin_onaylayan_yetki BEFORE INSERT OR UPDATE ON yayin
-  FOR EACH ROW EXECUTE FUNCTION onaylayan_yetki_kontrol();
-CREATE TRIGGER karar_onaylayan_yetki BEFORE INSERT OR UPDATE ON karar
-  FOR EACH ROW EXECUTE FUNCTION onaylayan_yetki_kontrol();
 
--- API'nin "bu kullanıcı bu yayını düzenleyebilir mi?" sorusu (Soru: avukat yalnızca kendi içeriği)
-CREATE FUNCTION yayin_duzenleyebilir_mi(p_kullanici bigint, p_yayin bigint) RETURNS boolean
-LANGUAGE sql STABLE AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM kullanici k
-    WHERE k.id = p_kullanici AND k.aktif
-      AND (k.rol IN ('yonetici', 'editor')
-           OR EXISTS (SELECT 1 FROM yayin y
-                      WHERE y.id = p_yayin AND y.durum IN ('taslak', 'incelemede')
-                        AND (y.olusturan_id = k.id
-                             OR EXISTS (SELECT 1 FROM yayin_yazar yy
-                                        WHERE yy.yayin_id = y.id AND yy.kisi_id = k.kisi_id)))))
-$$;
-
--- KVKK: başvuru silinince (süre dolumu, silme talebi) ya da CV değişince eski CV hiçbir başvuruda
--- kullanılmıyorsa dosya satırı silinir ve diskteki dosya kuyruğa yazılır. Dosya başka bir tabloda da
--- kullanılıyorsa (FK) bırakılır; böylece tek bir dosya tüm saklama temizliğini durdurmaz.
-CREATE FUNCTION basvuru_cv_birak() RETURNS trigger
+-- Varsayılan dil kuralı: COMMIT anında tam olarak bir varsayılan dil ve yayındaki her şeyin o dilde çevirisi
+CREATE FUNCTION ic.dil_varsayilan_kontrol() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
-  anahtar text;
+  e record;
 BEGIN
-  IF OLD.cv_dosya_id IS NULL
-     OR (TG_OP = 'UPDATE' AND NEW.cv_dosya_id IS NOT DISTINCT FROM OLD.cv_dosya_id)
-     OR EXISTS (SELECT 1 FROM basvuru WHERE cv_dosya_id = OLD.cv_dosya_id) THEN
-    RETURN NULL;
+  IF (SELECT count(*) FROM public.dil WHERE varsayilan) <> 1 THEN
+    RAISE EXCEPTION 'tam olarak bir varsayılan dil olmalı' USING ERRCODE = 'check_violation';
   END IF;
-  BEGIN
-    DELETE FROM dosya WHERE id = OLD.cv_dosya_id RETURNING depolama_anahtari INTO anahtar;
-  EXCEPTION WHEN foreign_key_violation THEN
-    RETURN NULL;
-  END;
-  IF anahtar IS NOT NULL THEN
-    INSERT INTO dosya_silme_kuyrugu (depolama_anahtari) VALUES (anahtar) ON CONFLICT DO NOTHING;
+  SELECT * INTO e FROM ic.ceviri_eksikleri() LIMIT 1;
+  IF FOUND THEN
+    RAISE EXCEPTION 'varsayılan dil (%) değişikliği reddedildi: % #% bu dilde çevirisiz',
+      ic.varsayilan_dil(), e.ana, e.ana_id USING ERRCODE = 'check_violation';
   END IF;
   RETURN NULL;
 END $$;
-CREATE TRIGGER basvuru_cv_birak AFTER DELETE OR UPDATE OF cv_dosya_id ON basvuru
-  FOR EACH ROW EXECUTE FUNCTION basvuru_cv_birak();
+CREATE CONSTRAINT TRIGGER dil_varsayilan_zorunlu AFTER INSERT OR UPDATE OR DELETE ON dil
+  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ic.dil_varsayilan_kontrol();
 
--- KVKK saklama süresi: günlük systemd timer / cron ile çağrılır: SELECT * FROM kisisel_veri_temizle();
-CREATE FUNCTION kisisel_veri_temizle(log_saklama interval DEFAULT interval '2 years')
-RETURNS TABLE (tablo text, silinen bigint)
+CREATE FUNCTION ic.guncelleme_zamani_ata() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.guncelleme_zamani := now();
+  RETURN NEW;
+END $$;
+
+-- Çeviri değişince ana kaydın guncelleme_zamani'ni ilerletir (sitemap lastmod, derleme önbelleği).
+-- Çeviri başka kayda taşınırsa eski ve yeni ana kaydın ikisi de ilerler.
+CREATE FUNCTION ic.ceviri_ust_guncelle() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+  ana   text := left(TG_TABLE_NAME, -length('_ceviri'));
+  yeni  text := to_jsonb(NEW) ->> (ana || '_id');
+  eski  text := to_jsonb(OLD) ->> (ana || '_id');
+BEGIN
+  EXECUTE format('UPDATE public.%I SET guncelleme_zamani = now() WHERE id::text IN ($1, $2)', ana)
+    USING yeni, eski;
+  RETURN NULL;
+END $$;
+
+-- guncelleme_zamani sütunu olan ve henüz tetikleyicisi olmayan her tabloya, ve ana tablosunda
+-- guncelleme_zamani olan her *_ceviri tablosuna tetikleyici bağlar. Tekrar çağrılabilir (modüller çağırır).
+CREATE FUNCTION ic.tetikleyicileri_bagla() RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  t text;
+BEGIN
+  FOR t IN
+    SELECT c.relname FROM pg_class c
+    JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'guncelleme_zamani' AND NOT a.attisdropped
+    WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'r'
+      AND NOT EXISTS (SELECT 1 FROM pg_trigger g WHERE g.tgrelid = c.oid AND g.tgname = c.relname || '_guncelleme')
+  LOOP
+    EXECUTE format('CREATE TRIGGER %I BEFORE UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION ic.guncelleme_zamani_ata()',
+                   t || '_guncelleme', t);
+  END LOOP;
+
+  FOR t IN
+    SELECT c.relname FROM pg_class c
+    WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'r' AND c.relname LIKE '%\_ceviri'
+      AND EXISTS (SELECT 1 FROM pg_attribute a
+                  WHERE a.attrelid = to_regclass('public.' || left(c.relname, -7)) AND a.attname = 'guncelleme_zamani')
+      AND NOT EXISTS (SELECT 1 FROM pg_trigger g WHERE g.tgrelid = c.oid AND g.tgname = c.relname || '_ust_guncelle')
+  LOOP
+    EXECUTE format('CREATE TRIGGER %I AFTER INSERT OR UPDATE OR DELETE ON public.%I
+                    FOR EACH ROW EXECUTE FUNCTION ic.ceviri_ust_guncelle()', t || '_ust_guncelle', t);
+  END LOOP;
+END $$;
+
+DO $$ BEGIN
+  PERFORM ic.ceviri_kurali_ekle('yayin',         'a.durum = ''yayinda''', 'c.hazir');
+  PERFORM ic.ceviri_kurali_ekle('calisma_alani', 'a.gorunur',             'true');
+  PERFORM ic.ceviri_kurali_ekle('sayfa',         'a.aktif',               'true');
+  PERFORM ic.ceviri_kurali_ekle('unvan',         'true',                  'true');
+  PERFORM ic.ceviri_kurali_ekle('egitim',        'true',                  'true');
+  PERFORM ic.ceviri_kurali_ekle('deneyim',       'true',                  'true');
+  PERFORM ic.ceviri_kurali_ekle('etiket',        'true',                  'true');
+  PERFORM ic.ceviri_kurali_ekle('site_ayar',     'true',                  'true');
+  PERFORM ic.tetikleyicileri_bagla();
+END $$;
+
+
+-- ---------------------------------------------------------------------
+-- 13. KVKK saklama süresi: günlük systemd timer ile çağrılır: SELECT * FROM ic.kisisel_veri_temizle();
+-- ---------------------------------------------------------------------
+
+CREATE FUNCTION ic.kisisel_veri_temizle() RETURNS TABLE (tablo text, silinen bigint)
 LANGUAGE plpgsql AS $$
 DECLARE
   n bigint;
 BEGIN
-  DELETE FROM oturum WHERE son_kullanma < now();
-  GET DIAGNOSTICS n = ROW_COUNT; tablo := 'oturum'; silinen := n; RETURN NEXT;
-
-  DELETE FROM iletisim_mesaji WHERE saklama_bitis < now();
+  DELETE FROM public.iletisim_mesaji WHERE saklama_bitis < now();
   GET DIAGNOSTICS n = ROW_COUNT; tablo := 'iletisim_mesaji'; silinen := n; RETURN NEXT;
-
-  -- CV dosyaları basvuru_cv_birak tetikleyicisiyle silinip kuyruğa yazılır (eklenme_zamani = bu işlemin now()'u)
-  DELETE FROM basvuru WHERE saklama_bitis < now();
-  SELECT count(*) INTO n FROM dosya_silme_kuyrugu WHERE eklenme_zamani = now();
-  tablo := 'basvuru_cv_dosyasi'; silinen := n; RETURN NEXT;
-
-  DELETE FROM degisiklik_log WHERE olusturma_zamani < now() - log_saklama;
-  GET DIAGNOSTICS n = ROW_COUNT; tablo := 'degisiklik_log'; silinen := n; RETURN NEXT;
-END $$;
-
-
--- ---------------------------------------------------------------------
--- 14. Tetikleyicilerin bağlanması
--- ---------------------------------------------------------------------
-
--- Sonradan eklenen tablolar için migration'da çağrılır (GSI'deki DO bloğu yalnızca kurulum anını kapsıyordu)
-CREATE FUNCTION guncelleme_tetikleyicisi_ekle(tablo regclass) RETURNS void
-LANGUAGE plpgsql AS $$
-BEGIN
-  EXECUTE format('CREATE TRIGGER %I BEFORE UPDATE ON %s FOR EACH ROW EXECUTE FUNCTION guncelleme_zamani_ata()',
-                 tablo::text || '_guncelleme', tablo);
-END $$;
-
-DO $$
-DECLARE
-  t text;
-  r record;
-BEGIN
-  -- a) guncelleme_zamani sütunu olan her tablo
-  FOR t IN
-    SELECT c.relname FROM pg_class c
-    JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'guncelleme_zamani' AND NOT a.attisdropped
-    WHERE c.relnamespace = current_schema()::regnamespace AND c.relkind = 'r'
-  LOOP
-    PERFORM guncelleme_tetikleyicisi_ekle(t::regclass);
-  END LOOP;
-
-  -- b) her *_ceviri tablosu değişince ana kaydın guncelleme_zamani'ni ilerlet
-  FOR t IN
-    SELECT c.relname FROM pg_class c
-    WHERE c.relnamespace = current_schema()::regnamespace AND c.relkind = 'r' AND c.relname LIKE '%\_ceviri'
-      AND EXISTS (SELECT 1 FROM pg_attribute a
-                  WHERE a.attrelid = (left(c.relname, -7))::regclass AND a.attname = 'guncelleme_zamani')
-  LOOP
-    EXECUTE format('CREATE TRIGGER %I AFTER INSERT OR UPDATE OR DELETE ON %I
-                    FOR EACH ROW EXECUTE FUNCTION ceviri_ust_guncelle()', t || '_ust_guncelle', t);
-  END LOOP;
-
-  -- c) varsayılan dil çevirisi zorunluluğu: kurallar ceviri_kurali tablosunda
-  --    (yeni kural: tabloya satır ekle + aynı iki CREATE CONSTRAINT TRIGGER'ı migration'da çalıştır)
-  FOR r IN SELECT ana, kosul, ceviri_kosul AS ckosul FROM ceviri_kurali
-  LOOP
-    EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER INSERT OR UPDATE ON %I
-                    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
-                    EXECUTE FUNCTION ceviri_zorunlu_kontrol(%L, %L, %L)',
-                   r.ana || '_ceviri_zorunlu', r.ana, r.ana, r.kosul, r.ckosul);
-    EXECUTE format('CREATE CONSTRAINT TRIGGER %I AFTER UPDATE OR DELETE ON %I
-                    DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
-                    EXECUTE FUNCTION ceviri_zorunlu_kontrol(%L, %L, %L)',
-                   r.ana || '_ceviri_silinemez', r.ana || '_ceviri', r.ana, r.kosul, r.ckosul);
-  END LOOP;
 END $$;
 
 COMMIT;
