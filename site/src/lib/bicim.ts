@@ -41,7 +41,7 @@ export function telefonBicimle(numara: string): string {
   return e ? `+90 ${e[1]} ${e[2]} ${e[3]} ${e[4]}` : numara;
 }
 
-// Foto yerine gosterilen yer tutucu: Turkce buyuk harfle bas harfler ('ipek' -> 'İ').
+// Foto yerine gosterilen yer tutucu: Turkce buyuk harfle bas harfler ('ipek' -> noktali buyuk I).
 export function basHarfler(ad: string, soyad: string): string {
   return `${ad.charAt(0)}${soyad.charAt(0)}`.toLocaleUpperCase('tr');
 }

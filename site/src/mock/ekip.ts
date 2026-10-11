@@ -1,5 +1,5 @@
 // Mock veri: ekip. KISILER KURGUSALDIR (ilk uc kisi db/ornek_veri.sql'den).
-// Bilerek konan durumlar: 7 (Deniz Ünal) pasif (aktif = false, burodan ayrilmis);
+// Bilerek konan durumlar: 7 (Deniz Unal) pasif (aktif = false, burodan ayrilmis);
 // EN biyografisi yalnizca 1, 4, 5'te; 4'un gizli bir alanla (10) bagi var; 1'in cep telefonu gizli.
 import type {
   Deneyim, DeneyimCeviri, Egitim, EgitimCeviri, Kisi, KisiCalismaAlani, KisiCeviri, KisiTelefon, KisiYabanciDil,

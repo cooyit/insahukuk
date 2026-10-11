@@ -3,7 +3,7 @@ import { distVarMi, etiketler, gorunenMetin, htmlSayfalari, nitelik, type Sayfa 
 
 // Reklam yasagi: ustunluk dili, sonuc vaadi, ucretsiz hizmet, referans/yorum.
 // TR listesi docs/inceleme-2026-10-09.md 7. bolum "Denetim" maddesinden; ek TR ifadeler ve
-// EN karsiliklar bu calismada eklendi. Kelime basi eslesir: "uzman" -> "uzmanlık" da yakalanir.
+// EN karsiliklar bu calismada eklendi. Kelime basi eslesir: "uzman" -> "uzmanlik" (Turkce yazimiyla) da yakalanir.
 const YASAKLI_TR = [
   'uzman', 'en iyi', 'lider', 'öncü', 'önde gelen', 'başarılı', 'garanti', 'ücretsiz', 'kazandık',
   'kazanılan dava', 'yıllık tecrübe', 'yıllık deneyim', 'referanslar', 'müvekkil yorum', 'ofis davası',

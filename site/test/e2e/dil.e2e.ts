@@ -15,6 +15,13 @@ test.describe('kural: Turkce kokte, Ingilizce /en altinda; dil secici calisir', 
     await expect(page.locator('html')).toHaveAttribute('lang', 'tr');
   });
 
+  test('bilinmeyen adres 404 durum koduyla iki dilli 404 sayfasini dondurur', async ({ page }) => {
+    const yanit = await page.goto('/olmayan-bir-sayfa');
+    expect(yanit?.status()).toBe(404);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sayfa bulunamadı');
+    await expect(page.getByRole('link', { name: 'Back to home page' })).toBeVisible();
+  });
+
   test('icerige atla baglantisi ilk Tab ile odaklanir ve ana icerige gider', async ({ page }) => {
     await page.goto('/');
     await page.keyboard.press('Tab');

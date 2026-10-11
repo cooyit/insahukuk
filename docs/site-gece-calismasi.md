@@ -22,8 +22,8 @@
 | P5 Yayinlar | bitti |
 | P6 Kararlar | bitti |
 | P7 Ana sayfa, hakkimizda, iletisim, yasal sayfalar | bitti |
-| P8 Kalite gecisi | yapilmadi (sirada) |
-| P9 Son gozden gecirme | yapilmadi |
+| P8 Kalite gecisi | bitti |
+| P9 Son gozden gecirme | yapilmadi (sirada) |
 
 ---
 
@@ -348,6 +348,38 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 
 ---
 
+## P8 Kalite gecisi
+
+**Baslamadan once**
+1. Kaynak: gorev Bolum 5 P8 (SEO, erisilebilirlik, yasakli kelime, ucuncu taraf istek ve kirik link testlerinin butun sayfalari kapsadigini dogrula), Bolum 6.
+2. En basit yol: elle secilmis sayfa listelerini kaldirip testleri dist'teki her HTML dosyasindan beslemek. Yeni bir sayfa eklenince test listesi guncellemek gerekmez.
+3. Yapmazsam: yeni eklenen sayfa turleri sessizce test disinda kalabilir (ornek: EN yayin detayi axe listesinde yoktu).
+4. Uyum: yeni paket yok.
+
+**Kapsam (son durum):**
+| Kural | Test | Kapsam |
+|---|---|---|
+| `lang`, tek `h1`, `title`, `meta description`, canonical, iki yonlu hreflang | `cikti/seo.test.ts` | dist'teki butun HTML (67) |
+| Canonical ve `title` benzersiz, description <= 160, site haritasi = canonical'lar, robots -> harita | `cikti/site-haritasi.test.ts` (yeni) | butun HTML |
+| Ic baglantilar ve `#` hedefleri var | `cikti/baglanti.test.ts` | butun HTML |
+| TR + EN yasakli kelime yok | `cikti/yasakli-kelime.test.ts` | butun HTML (metin, title, meta, alt) |
+| Ucuncu taraf istek yok (script, stil, font, gorsel, iframe, CSS url) | `cikti/dis-istek.test.ts` | butun HTML + dist'teki CSS dosyalari |
+| XSS kalintisi yok | `cikti/xss.test.ts` | butun HTML |
+| Footer bilgileri ve yasal baglantilar | `cikti/alt-bilgi.test.ts`, `cikti/sabit-sayfalar.test.ts` | butun HTML |
+| Pop-up, WhatsApp, video, sabit oge, logo yok | `cikti/sabit-sayfalar.test.ts` | butun HTML + CSS |
+| axe: ciddi/kritik ihlal 0 | `e2e/erisilebilirlik.e2e.ts` | **butun sayfalar** (P8'de elle listeden dist listesine gecti; 67 sayfa) |
+| 360 px'te yatay tasma yok, menu gorunur | `e2e/menu.e2e.ts` | **butun sayfalar** (P8'de 15'ten 67'ye) |
+| Bilinmeyen adres 404 doner | `e2e/dil.e2e.ts` (yeni test) | `/olmayan-bir-sayfa` |
+
+**Bulunan ve duzeltilen:**
+- TR ve EN profil sayfalari ayni `title`'i tasiyordu ("Ayse Yilmaz | ..."): yeni benzersiz baslik testi yakaladi. Baslik artik unvani da iceriyor ("Ad Soyad, Kurucu Ortak" / "..., Founding Partner").
+- Dort kod yorumunda Turkce harf vardi (Kural 1: yorumlar ASCII); duzeltildi. Kontrol: `grep -rnP` ile yorum satirlarinda ASCII disi karakter aramasi, sonuc 0.
+- `Temel.astro`'daki `menu.length > 0` kosulu P1'deki bos menuden kalmaydi; kaldirildi.
+
+**Bozarak dogrulanan (P8):** site haritasi testi (sitemap'ten `/ekip` dislandi -> kirmizi), axe (ikincil metin rengi `#b0b4ba` yapildi -> `color-contrast` ihlali, kirmizi). Ikisi de geri alindi.
+
+---
+
 ## Kararlar tablosu
 
 | # | Karar | Gerekce | Kim karar verdi | Plandan sapma mi |
@@ -390,6 +422,8 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | K36 | Gonderim ucu olmadigi icin form ustunde "henuz devrede degil" notu + betikle "gonderilmedi" | Sahte basari mesaji yasak; JS kapaliyken bile kullanici once uyarilsin | ben karar verdim | hayir |
 | K37 | Form iletisim_mesaji sutun adlarini (`ad`, `eposta`, `telefon`, `konu_turu`, `mesaj`, `aydinlatma_surumu`) kullanir | Uc yazilinca esleme gerekmesin | ben karar verdim | hayir |
 | K38 | Menu, klavye ve mobil testleri P7'de (P8 degil) | Menu bu pakette tamamlandi; ayni pakette test edilmesi dogal | ben karar verdim | hayir |
+| K39 | axe ve mobil testleri dist'teki butun sayfalarda | Elle liste eskiyor; e2e suresi ~1 dakika, kabul edilebilir | ben karar verdim | hayir |
+| K40 | Profil `title`'inda unvan | TR/EN profil basliklari ayirt edilsin; arama sonucunda daha bilgilendirici | ben karar verdim | hayir |
 
 ---
 
@@ -420,6 +454,7 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | P5 | 0 hata | 239/239 | 44/44 | 30/30 |
 | P6 | 0 hata | 239/239 | 52/52 | 35/35 |
 | P7 | 0 hata | 239/239 | 64/64 | 59/59 |
+| P8 | 0 hata | 239/239 | 69/69 | 153/153 |
 
 **Bozarak dogrulanan testler:**
 | Test | Nasil bozuldu | Sonuc |
@@ -441,7 +476,10 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 
 | `sabit-sayfalar.test.ts` + `iletisim.e2e.ts` | Form sonuc metni "Mesajiniz basariyla gonderildi." yapildi, `ad` alanindan `required` kaldirildi | iki dist ve iki e2e testi kirmizi, geri alindi |
 
-- Son dogrulama: P7 sonu, 12 Ekim 2026 02:23 (Europe/Istanbul): check 0 hata, birim 239, cikti 64, e2e 59; hepsi yesil.
+| `site-haritasi.test.ts` | Sitemap'ten `/ekip` iceren adresler filtreyle dislandi | kirmizi, geri alindi |
+| `erisilebilirlik.e2e.ts` (axe) | `--renk-metin-ikincil` `#b0b4ba` yapildi | `color-contrast` ihlali, kirmizi, geri alindi |
+
+- Son dogrulama: P8 sonu, 12 Ekim 2026 02:28 (Europe/Istanbul): check 0 hata, birim 239, cikti 69, e2e 153; hepsi yesil.
 
 ---
 
@@ -455,6 +493,7 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 - **P5 Yayinlar:** TR/EN filtreli yayin listesi (tur, alan, yazar, yil, etiket; JS yoksa tam liste) ve ture gore degisen detay sayfasi (makale icerigi, kitap kunyesi, video dis baglantisi, haber kaynagi, PDF ekleri, yazarlar) eklendi; profil ve alan sayfalarindaki yayinlar baglantiya dondu.
 - **P6 Kararlar:** Yalnizca TR karar listesi (mahkeme, yil, alan, mevzuat filtresi) ve detay sayfasi (kunye, mevzuat maddeleri, anonim metin, ilgili yayinlar) eklendi; yayin-karar baglantisi iki yonlu oldu. Ofis davasi ve sonuc dili icin dist testleri yazildi.
 - **P7 Ana sayfa, iletisim, yasal sayfalar:** TR/EN ana sayfa (giris, alanlar, arabuluculuk, son yayinlar/kararlar, ekip), iletisim sayfasi ve HTML dogrulamali form (gonderim ucu yok, "gonderilmedi" der), footer'da yasal sayfa baglantilari ve tam menu eklendi. Form, reklam kurallari, klavye ve mobil tasma testleri yazildi; mobil testi filtre formundaki tasmayi buldu, duzeltildi.
+- **P8 Kalite gecisi:** axe ve mobil testleri dist'teki butun sayfalara genisletildi; site haritasi, benzersiz title/canonical ve 404 durum kodu testleri eklendi. Ayni profil basliklari ve yorumlardaki Turkce harfler duzeltildi.
 
 ---
 
@@ -503,3 +542,7 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | 39 | `git diff --cached --name-status` | Hazirlik alaninda yalniz P7 dosyalari oldugunu kontrol etti. |
 | 40 | `git commit -m "Ana sayfa, iletisim ve yasal sayfa baglantilarini ekle" -m "..."` | P7 commit'i. |
 | 41 | `git push origin worktree-site-gece` | P7'yi uzaga gonderdi. |
+| 42 | `git add docs/site-gece-calismasi.md site/src site/test` | P8 dosyalarini acik yollarla hazirlik alanina koydu. |
+| 43 | `git diff --cached --name-status` | Hazirlik alaninda yalniz P8 dosyalari oldugunu kontrol etti. |
+| 44 | `git commit -m "Kalite gecisi: testleri butun sayfalara genislet" -m "..."` | P8 commit'i. |
+| 45 | `git push origin worktree-site-gece` | P8'i uzaga gonderdi. |

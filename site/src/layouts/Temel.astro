@@ -59,21 +59,19 @@ function aktifMi(menuYolu: string): boolean {
     <header class="ust">
       <div class="kap ust-kap">
         <a class="site-adi" href={yollar[dil].anaSayfa}>{siteAdi}</a>
-        {
-          menu.length > 0 && (
-            <nav aria-label={m.anaMenu}>
-              <ul class="menu">
-                {menu.map((oge) => (
-                  <li>
-                    <a href={oge.yol} aria-current={aktifMi(oge.yol) ? 'page' : undefined}>
-                      {oge.ad}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          )
-        }
+        <nav aria-label={m.anaMenu}>
+          <ul class="menu">
+            {
+              menu.map((oge) => (
+                <li>
+                  <a href={oge.yol} aria-current={aktifMi(oge.yol) ? 'page' : undefined}>
+                    {oge.ad}
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
+        </nav>
         <a class="dil-secici" href={dilSeciciHedef} lang={diger} hreflang={diger}>
           {metinler[diger].dilAdi}
         </a>

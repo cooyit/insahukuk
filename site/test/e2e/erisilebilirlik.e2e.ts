@@ -1,23 +1,17 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { distVarMi, htmlSayfalari } from '../cikti/dist';
 
-// Her sayfa turunden bir ornek. Yeni bir sayfa turu eklenince buraya da eklenir.
-const SAYFALAR = [
-  '/', '/en', '/404',
-  '/ekip', '/ekip/ayse-yilmaz', '/en/team', '/en/team/ayse-yilmaz',
-  '/calisma-alanlari', '/calisma-alanlari/kamu-hukuku', '/calisma-alanlari/imar-hukuku', '/en/practice-areas/zoning-law',
-  '/arabuluculuk', '/en/mediation', '/kvkk-aydinlatma-metni',
-  '/yayinlar', '/en/publications',
-  '/yayinlar/kira-bedelinin-tespiti-davalarinda-guncel-durum', // makale
-  '/yayinlar/kira-uyusmazliklarinda-arabuluculuk', // kitap
-  '/yayinlar/arabuluculuk-sureci-nasil-isler', // video
-  '/yayinlar/kira-artis-oranina-iliskin-degerlendirme', // haber
-  '/yayinlar/velayet-duzenlemesinde-cocugun-yarari', // PDF ekli
-  '/kararlar', '/kararlar/yargitay-3-hd-e-2024-1111-k-2025-2222',
-  '/hakkimizda', '/en/about', '/iletisim', '/en/contact',
-];
+// Elle secilmis liste yerine dist'teki BUTUN sayfalar: yeni bir sayfa ya da sayfa turu
+// eklenince ayrica yazmak gerekmez, tarama kendiliginden kapsar.
+if (!distVarMi()) throw new Error('dist/ yok: once "npm run build" calistirin');
+const SAYFALAR = htmlSayfalari().map((s) => s.yol).sort();
 
-test.describe('kural: WCAG 2.2 AA, ciddi ve kritik axe ihlali yok', () => {
+test.describe('kural: WCAG 2.2 AA, ciddi ve kritik axe ihlali yok (butun sayfalar)', () => {
+  test('en az 60 sayfa taraniyor (dist bos ya da eksik degil)', () => {
+    expect(SAYFALAR.length).toBeGreaterThanOrEqual(60);
+  });
+
   for (const yol of SAYFALAR) {
     test(`axe: ${yol}`, async ({ page }) => {
       await page.goto(yol);

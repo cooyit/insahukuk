@@ -18,6 +18,8 @@ interface Props {
 
 const { dil, kisi } = Astro.props;
 const m = metinler[dil];
+// Unvan basliga girer: TR ve EN profil ayni ada sahip, title dile gore ayirt edilsin.
+const baslik = kisi.unvan ? `${kisi.tamAd}, ${kisi.unvan}` : kisi.tamAd;
 
 function yilAraligi(bas: number | null, bit: number | null): string {
   if (bas === null && bit === null) return '';
@@ -26,7 +28,7 @@ function yilAraligi(bas: number | null, bit: number | null): string {
 }
 ---
 
-<Temel baslik={kisi.seoBaslik ?? kisi.tamAd} aciklama={kisi.aciklama} karsilik={kisi.karsilik}>
+<Temel baslik={kisi.seoBaslik ?? baslik} aciklama={kisi.aciklama} karsilik={kisi.karsilik}>
   <KirintiYolu dil={dil} ogeler={[{ ad: m.ekip, url: yollar[dil].ekip }, { ad: kisi.tamAd }]} />
 
   <header class="profil-bas">

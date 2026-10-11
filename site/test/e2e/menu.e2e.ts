@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { htmlSayfalari } from '../cikti/dist';
 
 const TR_MENU = ['Hakkımızda', 'Çalışma Alanları', 'Arabuluculuk', 'Ekip', 'Yayınlar', 'Kararlar', 'İletişim'];
 
@@ -35,11 +36,8 @@ test.describe('kural: menu klavyeyle kullanilabilir', () => {
 test.describe('kural: mobil genislikte sayfa bozulmaz (yatay kaydirma yok)', () => {
   test.use({ viewport: { width: 360, height: 740 } });
 
-  const SAYFALAR = [
-    '/', '/en', '/hakkimizda', '/calisma-alanlari', '/calisma-alanlari/kamu-hukuku', '/arabuluculuk',
-    '/ekip', '/ekip/ayse-yilmaz', '/yayinlar', '/yayinlar/kira-uyusmazliklarinda-arabuluculuk',
-    '/kararlar', '/kararlar/yargitay-3-hd-e-2024-1111-k-2025-2222', '/iletisim', '/kvkk-aydinlatma-metni', '/404',
-  ];
+  // dist'teki butun sayfalar (erisilebilirlik testindeki gibi).
+  const SAYFALAR = htmlSayfalari().map((s) => s.yol).sort();
 
   for (const yol of SAYFALAR) {
     test(`360px: ${yol}`, async ({ page }) => {

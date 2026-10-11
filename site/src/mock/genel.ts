@@ -21,7 +21,7 @@ export const directus_files: DirectusDosya[] = [
   },
 ];
 
-// Buro unvani yalnizca burada tanimlidir. Kurgusal; "soyad + Avukatlık Bürosu" bicimi
+// Buro unvani yalnizca burada tanimlidir. Kurgusal; "soyad + Avukatlik Burosu" bicimi
 // docs/inceleme-2026-10-09.md 7. bolumdeki unvan kuralina uyar.
 export const site_ayar: SiteAyar[] = [
   {
