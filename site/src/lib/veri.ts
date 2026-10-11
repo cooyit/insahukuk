@@ -18,7 +18,7 @@
 import { mockTablolar } from '../mock';
 import { basHarfler, turkceKarsilastir, yilBul } from './bicim';
 import { duzMetin, htmlTemizle } from './html';
-import type { Dil } from './metinler';
+import { digerDil, type Dil } from './metinler';
 import type { CalismaAlani, Karar, Kisi, Tablolar, Yayin, YayinCeviri, YayinTuru } from './tablolar';
 import { sayfaYolu, yollar } from './yollar';
 
@@ -127,6 +127,7 @@ export interface AlanDetay extends AlanOzet {
 export interface Yazar {
   ad: string;
   unvan: string | null;
+  // Yalnizca aktif ekip uyesinde dolu (yazar filtresi); dis yazar ve ayrilan kiside null.
   kisiId: number | null;
   url: string | null;
 }
@@ -265,8 +266,17 @@ function dosyaBul(t: Tablolar, id: string | null | undefined): Dosya | null {
   return { ad: d.filename_download, url: `/dosyalar/${d.filename_disk}`, tur: d.type ?? null };
 }
 
-function digerDilinde(dil: Dil): Dil {
-  return dil === 'tr' ? 'en' : 'tr';
+// CMS'den gelen dis baglanti (video, haber kaynagi, harita) yalnizca gecerli bir https adresiyse
+// kullanilir. Sema bunu CHECK ile zaten zorunlu kiliyor; zengin metindeki gibi burada da ikinci kat:
+// "javascript:" ya da bozuk adres sayfaya baglanti olarak cikmasin, derlemeyi de dusurmesin.
+function httpsAdres(adres: string | null | undefined): string | null {
+  if (!adres || !/^https:\/\/\S+$/.test(adres)) return null;
+  try {
+    new URL(adres);
+    return adres;
+  } catch {
+    return null;
+  }
 }
 
 // --- kisi ---
@@ -328,9 +338,11 @@ function alanBaglantilari(b: Baglam, alanIdleri: number[]): Baglanti[] {
     .sort((x, y) => turkceKarsilastir(x.ad, y.ad));
 }
 
-// Ust alan icin kendisi + alt alanlari; alt alan icin yalnizca kendisi.
+// Ust alan icin kendisi + gorunur alt alanlari; alt alan icin yalnizca kendisi.
+// Gizli alt alanin kisi ve yayinlari ust alanin sayfasina tasinmaz.
 function alanVeAltlari(b: Baglam, alanId: number): number[] {
-  return [alanId, ...b.t.calisma_alani.filter((a) => a.ust_alan_id === alanId).map((a) => a.id)];
+  const altlar = b.t.calisma_alani.filter((a) => a.ust_alan_id === alanId && alanGorunurMu(a, b.t));
+  return [alanId, ...altlar.map((a) => a.id)];
 }
 
 function alanOzeti(b: Baglam, a: CalismaAlani): AlanOzet | null {
@@ -368,7 +380,8 @@ function yazarlar(b: Baglam, yayinId: number): Yazar[] {
     .sort((x, y) => x.sira - y.sira)
     .map((yy) => {
       const k = yy.kisi_id != null ? b.t.kisi.find((x) => x.id === yy.kisi_id) : undefined;
-      if (k) return { ad: `${k.ad} ${k.soyad}`, unvan: null, kisiId: k.id, url: kisiUrl(b, k) };
+      // Burodan ayrilan kisi artik ekipten sayilmaz: adi yazilir, kisiId (yazar filtresi) ve profil yok.
+      if (k) return { ad: `${k.ad} ${k.soyad}`, unvan: null, kisiId: k.aktif ? k.id : null, url: kisiUrl(b, k) };
       return { ad: yy.dis_yazar_adi ?? '', unvan: yy.dis_yazar_unvan ?? null, kisiId: null, url: null };
     });
 }
@@ -469,7 +482,7 @@ export async function siteAyariGetir(dil: Dil, secenek?: Secenek): Promise<SiteA
     resmiUnvan: ayar.resmi_unvan,
     telefon: ayar.telefon ?? null,
     eposta: ayar.eposta ?? null,
-    haritaUrl: ayar.harita_url ?? null,
+    haritaUrl: httpsAdres(ayar.harita_url),
     aydinlatmaSurumu: ayar.aydinlatma_surumu ?? null,
     adres: c?.adres ?? null,
     altBilgiNotu: c?.alt_bilgi_notu ?? null,
@@ -516,7 +529,7 @@ export async function kisiDetaylariGetir(dil: Dil, secenek?: Secenek): Promise<K
       return {
         ...ozet,
         url: ozet.url!,
-        karsilik: kisiUrl(b, k, digerDilinde(dil)),
+        karsilik: kisiUrl(b, k, digerDil(dil)),
         aciklama: aciklamaSec(c?.seo_aciklama, c?.kisa_biyografi, `${ozet.tamAd}${ozet.unvan ? `, ${ozet.unvan}` : ''}`),
         seoBaslik: c?.seo_baslik ?? null,
         biyografi: htmlTemizle(c?.biyografi),
@@ -565,7 +578,7 @@ export async function calismaAlaniDetaylariGetir(dil: Dil, secenek?: Secenek): P
     const yayinIdleri = new Set(b.t.yayin_calisma_alani.filter((x) => kapsam.includes(x.calisma_alani_id)).map((x) => x.yayin_id));
     return [{
       ...ozet,
-      karsilik: alanUrl(b, a.id, digerDilinde(dil)),
+      karsilik: alanUrl(b, a.id, digerDil(dil)),
       aciklama: aciklamaSec(c.seo_aciklama, c.ozet, c.icerik, c.ad),
       seoBaslik: c.seo_baslik ?? null,
       icerik: htmlTemizle(c.icerik),
@@ -588,15 +601,15 @@ export async function yayinDetaylariGetir(dil: Dil, secenek?: Secenek): Promise<
     const kararIdleri = new Set(b.t.yayin_karar.filter((x) => x.yayin_id === y.id).map((x) => x.karar_id));
     return {
       ...yayinOzeti(b, y, c),
-      karsilik: yayinUrl(b, y.id, digerDilinde(dil)),
+      karsilik: yayinUrl(b, y.id, digerDil(dil)),
       aciklama: aciklamaSec(c.seo_aciklama, c.ozet, c.icerik, c.baslik),
       seoBaslik: c.seo_baslik ?? null,
       icerik: htmlTemizle(c.icerik),
       kitap: y.tur === 'kitap'
         ? { yayinevi: y.yayinevi ?? null, isbn: y.isbn ?? null, basimYili: y.basim_yili ?? null, sayfaSayisi: y.sayfa_sayisi ?? null }
         : null,
-      videoUrl: y.tur === 'video' ? (y.video_url ?? null) : null,
-      kaynak: y.tur === 'haber' ? { ad: y.kaynak_adi ?? null, url: y.kaynak_url ?? null } : null,
+      videoUrl: y.tur === 'video' ? httpsAdres(y.video_url) : null,
+      kaynak: y.tur === 'haber' ? { ad: y.kaynak_adi ?? null, url: httpsAdres(y.kaynak_url) } : null,
       dosyalar: b.t.yayin_dosya
         .filter((x) => x.yayin_id === y.id)
         .sort((p, q) => p.sira - q.sira)
@@ -633,7 +646,7 @@ function sayfaIcerigi(b: Baglam, sayfaId: number, dil: Dil): SayfaIcerik | undef
   const s = b.t.sayfa.find((x) => x.id === sayfaId);
   const c = b.t.sayfa_ceviri.find((x) => x.sayfa_id === sayfaId && x.dil === dil);
   if (!s?.aktif || !c) return undefined;
-  const karsi = b.t.sayfa_ceviri.find((x) => x.sayfa_id === sayfaId && x.dil === digerDilinde(dil));
+  const karsi = b.t.sayfa_ceviri.find((x) => x.sayfa_id === sayfaId && x.dil === digerDil(dil));
   return {
     anahtar: s.anahtar,
     baslik: c.baslik,
@@ -641,7 +654,7 @@ function sayfaIcerigi(b: Baglam, sayfaId: number, dil: Dil): SayfaIcerik | undef
     aciklama: aciklamaSec(c.seo_aciklama, c.icerik, c.baslik),
     seoBaslik: c.seo_baslik ?? null,
     url: sayfaYolu(c.slug, dil),
-    karsilik: karsi ? sayfaYolu(karsi.slug, digerDilinde(dil)) : null,
+    karsilik: karsi ? sayfaYolu(karsi.slug, digerDil(dil)) : null,
   };
 }
 
@@ -658,6 +671,14 @@ const YASAL_SAYFALAR = ['kvkk_aydinlatma', 'cerez_politikasi', 'yasal_uyari', 'k
 
 export async function yasalSayfalariGetir(secenek?: Secenek): Promise<SayfaIcerik[]> {
   return (await sayfalariGetir('tr', secenek)).filter((s) => YASAL_SAYFALAR.includes(s.anahtar));
+}
+
+// Genel sablonla ([sayfa].astro) uretilen sabit sayfalar: ana sayfa ve iletisim kendi sablonlarini
+// kullanir. Liste TR ve EN rotasinda ayni kalsin diye burada.
+const KENDI_SABLONU_OLANLAR = ['ana_sayfa', 'iletisim'];
+
+export async function icerikSayfalariGetir(dil: Dil, secenek?: Secenek): Promise<SayfaIcerik[]> {
+  return (await sayfalariGetir(dil, secenek)).filter((s) => !KENDI_SABLONU_OLANLAR.includes(s.anahtar));
 }
 
 // Bu dilde aktif ve cevirisi olan butun sabit sayfalar, siralama alanina gore.

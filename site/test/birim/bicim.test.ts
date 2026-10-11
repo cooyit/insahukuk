@@ -33,6 +33,12 @@ describe('kural: tarih bicimi Intl.DateTimeFormat, saat dilimi Europe/Istanbul',
     expect(isoGun('2025-02-10')).toBe('2025-02-10');
     expect(yilBul('2025-01-01')).toBe(2025);
   });
+
+  it('2016 oncesi kis tarihleri (Istanbul +02:00) da kaymaz', () => {
+    expect(tarihBicimle('2015-01-10', 'tr')).toBe('10 Ocak 2015');
+    expect(isoGun('2015-01-10')).toBe('2015-01-10');
+    expect(yilBul('2014-01-01')).toBe(2014);
+  });
 });
 
 describe('kural: yabanci dil adi koddan Intl.DisplayNames ile uretilir', () => {

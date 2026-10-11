@@ -8,8 +8,6 @@
 
 ## Sabah ozeti
 
-> Bu bolum is bittikce guncellenir. Son hali P9'da yazilir.
-
 ### 1. Durum
 
 | Paket | Durum |
@@ -23,7 +21,125 @@
 | P6 Kararlar | bitti |
 | P7 Ana sayfa, hakkimizda, iletisim, yasal sayfalar | bitti |
 | P8 Kalite gecisi | bitti |
-| P9 Son gozden gecirme | yapilmadi (sirada) |
+| P9 Son gozden gecirme | bitti |
+
+Site 67 HTML sayfa uretiyor (TR 44, EN 22, iki dilli 404) + `robots.txt` + site haritasi. Yapilmayan paket yok.
+
+### 2. Nasil calistirilir
+
+```
+cd site
+npm ci
+npm run dev            # http://localhost:4321 (gelistirme sunucusu)
+```
+
+Testler (hepsi `site/` icinde; komutlar Windows'ta da ayni):
+
+| Komut | Ne yapar |
+|---|---|
+| `npm run check` | TypeScript + Astro tip denetimi |
+| `npm run test` | Birim + mock butunluk testleri (Vitest) |
+| `npm run build` | Siteyi `dist/`'e uretir |
+| `npm run test:cikti` | `dist/` uzerinde SEO, baglanti, yasakli kelime, dis istek ... (once build) |
+| `npm run test:e2e` | Playwright + axe (once build). **Kendi bilgisayarinizda once bir kez:** `npx playwright install chromium` |
+| `npm run test:hepsi` | build + test + test:cikti + test:e2e |
+
+Bu gece makinede Playwright'in kendi Chromium'u kurulu degildi; testler sistemdeki Chrome ile calisti: `CHROMIUM_YOLU` ortam degiskeni verilirse Playwright o tarayiciyi kullanir (macOS ornegi: `CHROMIUM_YOLU="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" npm run test:e2e`). Degisken verilmezse `npx playwright install chromium` ile kurulani kullanir.
+
+### 3. Kararlar
+
+Butun kararlar (K1-K43) asagidaki "Kararlar tablosu" bolumunde: karar, gerekce, kim karar verdi (hepsi "ben karar verdim"), plandan sapma mi. **Plandan sapmalar:**
+
+| # | Sapma | Neden |
+|---|---|---|
+| K2 | 05:35 uyandirmasi `send_later` yerine oturum zamanlayicisi | `send_later` araci bu oturumda yoktu; zamanlayici yalnizca oturum aciksa calisir |
+| K3 | Playwright icin sistem Chrome'u | `/opt/pw-browsers` bu makinede yok; `playwright install` yasakti |
+| K7 | Site haritasi dosya adi `sitemap.xml` degil `sitemap-index.xml` | `@astrojs/sitemap` (en az kod) bu adi uretiyor; `robots.txt` dogru dosyayi gosteriyor |
+| K25 | Genel sabit sayfa sablonu P7 yerine P4'te | Arabuluculuk icin yazilan sablon hakkimizda ve yasal sayfalari da uretiyor; P7'de tekrar yazilmadi |
+
+### 4. Acik sorular (gece "(onerilen)" uygulandi)
+
+Ayrintisi asagida "P0 Genel cerceve > Acik sorular" tablosunda (S1-S7). Kisaca:
+
+| # | Soru | Gece uygulanan (onerilen) | Diger secenek ve sonucu |
+|---|---|---|---|
+| S1 | Iletisim formu nereye gidecek? | Form hazir, uc yok; "gonderilmedi" der. Oneri: kucuk bir Node ucu `iletisim_mesaji`'na yazsin | `mailto:` (kayit/saklama yok); ucuncu taraf servis (KVKK yuku) |
+| S2 | Sicil numaralari gosterilsin mi? | Gosterilmiyor; yalnizca baro adi ve "Arabulucu" | Goster: tek satir kod, buro/baro onayi gerekir |
+| S3 | Kararlar EN'de? | Yok (menude de yok) | EN menude TR sayfaya baglanti: kullanici habersiz dil degistirir |
+| S4 | EN ekip listesi | Herkes listede, EN profili olmayan baglantisiz | Yalnizca EN profili olanlar: bazi avukatlar EN'de gorunmez |
+| S5 | Yasal sayfalarin EN'i | Yok; EN footer TR sayfalara `lang="tr"` ile baglanir | EN taslak: uydurma hukuki metin riski |
+| S6 | Alan adi | `https://www.example.com` yer tutucu (`site/astro.config.mjs`, tek satir) | Unvan ve `.av.tr` netlesince degisir |
+| S7 | Footer baro bilgisi | Aktif avukatlarin baro adlarindan turetiliyor | `site_ayar`'a alan (V1) |
+
+### 5. En onemli kararlar (Kural 7 sablonu)
+
+**Soru:** Sayfalar veriye neden yalnizca `src/lib/veri.ts` uzerinden erisiyor ve bu fonksiyonlar neden `async`?
+**Cevap:** Yayin kurallari (taslak gizli, pasif kisi gizli, karar anonim olmali ...) tek yerde dursun ve PostgreSQL'e geciste yalnizca bir fonksiyon (`tablolariYukle`) degissin diye.
+**Basit anlatim:** Bir kutuphanede kitabi raftan herkes kendisi alirsa yirtik ya da yasakli kitap da eline gecer. Tek bir gorevli kitaplari kontrol edip verirse kural tek kisinin elindedir; kitaplar depodan gelse de baska binadan gelse de okuyucu farki gormez.
+**Neden:** Kural sayfalara dagilirsa bir sayfa unutur ve taslak bir yazi yayina cikar. Fonksiyonlar bugun async oldugu icin veritabani gelince sayfa kodu degismez.
+**Oneri 1 (onerilen, uygulandi):** Tek modul, duz fonksiyonlar | Yarari: basit, testli | Riski: modul buyudukce (bugun ~670 satir) okumak zorlasir; ileride konuya gore bolunebilir.
+**Oneri 2:** Repository/adaptor katmani | Yarari: kaynak degisimi soyutlanir | Riski: bu boyutta gereksiz katman; gorev acikca istemiyor.
+
+**Soru:** Mock veri neden sema adlarini birebir kullaniyor ve neden ayri bir "butunluk testi" var?
+**Cevap:** Mock'un veritabanina yuklense kabul edilecek veri olmasi icin. 190 test, `db/schema.sql`'deki yabanci anahtar, tekillik, CHECK ve "yayindaki kaydin Turkce cevirisi zorunlu" kurallarini kopyalayip mock'a uygular.
+**Basit anlatim:** Prova sinavini gercek sinavin kurallariyla yaparsan, gercek gun "bu soru tipi yoktu" surprizi yasamazsin.
+**Neden:** Aksi halde site mock'la calisir, gercek veriyle kirilir (ornek: mock'ta olan ama semanin reddettigi bir slug bicimi).
+**Oneri 1 (onerilen, uygulandi):** Kurallari testte kopyalamak ve hangi sema satirindan geldigini yorumlamak | Yarari: veritabani olmadan calisir | Riski: sema degisince test elle guncellenmeli.
+**Oneri 2:** Mock'u gercek PostgreSQL'e yukleyen test | Yarari: kural kopyasi gerekmez | Riski: CI'da PostgreSQL gerekir; bu gece kapsam disi.
+
+**Soru:** Iletisim formu neden "gonderilmedi" diyor?
+**Cevap:** Formun gidecegi sunucu ucu henuz yok (S1); sahte bir "gonderildi" mesaji hem yanlis hem KVKK acisindan riskli.
+**Basit anlatim:** Postanesi olmayan bir posta kutusu koyup "mektubunuz gonderildi" yazmak gibi olurdu.
+**Neden:** Ziyaretci mesajinin ulastigini sanip bekler. Bu yuzden formun ustunde "henuz devrede degil" notu var ve gecerli gonderimde durum alani bunu tekrarlar.
+**Oneri 1 (onerilen):** Kucuk bir sunucu ucu (`/api/iletisim`): `iletisim_mesaji`'na yazar; sema saklama suresini ve HMAC'li IP'yi zaten tasiyor | Yarari: mesajlar panelde | Riski: kimlik/kotuye kullanim sinirlari, e-posta bildirimi (SMTP) gerekir.
+**Oneri 2:** `mailto:` | Yarari: sunucu gerekmez | Riski: kullanicinin e-posta programina bagli, kayit ve saklama suresi yok.
+
+**Soru:** Filtreler neden kucuk bir betikle `hidden` niteligini degistiriyor?
+**Cevap:** Statik sitede filtre icin sunucu yok; liste derlemede tam uretilir, betik yalnizca gizler/gosterir. JS kapaliysa form gorunmez, liste tam kalir.
+**Basit anlatim:** Butun kitaplar masada; filtre yalnizca "su yazarinkiler disindakileri ortme"dir. Ortu calismazsa yine butun kitaplar gorunur.
+**Neden:** "JS en az, JS'siz gezilebilir" kurali. 10-15 yayin icin baska bir yonteme gerek yok.
+**Oneri 1 (onerilen, uygulandi):** Istemcide gizle/goster | Yarari: ~35 satir, bagimlilik yok | Riski: yayin sayisi yuzleri gecerse sayfa agirlasir.
+**Oneri 2:** Her filtre icin ayri statik sayfa (`/yayinlar/yil/2025`) | Yarari: JS hic yok, paylasilabilir adres | Riski: cok sayfa, kombinasyonlar icin uygun degil.
+
+**Soru:** Adresler neden sonda egik cizgi olmadan (`/ekip/ayse-yilmaz`) ve `build.format: 'file'`?
+**Cevap:** inceleme 6.3'teki adreslerle birebir olsun ve her icerigin tek kanonik adresi olsun diye.
+**Basit anlatim:** Bir evin iki kapi numarasi olursa postaci sasirir; tek numara verdik.
+**Neden:** Iki bicim birden calisirsa arama motoru ayni sayfayi iki kez sayar.
+**Oneri 1 (onerilen, uygulandi):** `/ekip/ayse-yilmaz` -> `ekip/ayse-yilmaz.html` | Riski: Caddy'de `try_files {path}.html` satiri gerekir.
+**Oneri 2:** `/ekip/ayse-yilmaz/` -> `ekip/ayse-yilmaz/index.html` | Yarari: her sunucuda ayarsiz calisir | Riski: inceleme belgesindeki adreslerden farkli.
+
+### 6. Bu kodu nasil okurum
+
+1. `site/src/lib/tablolar.ts`: veritabani satirlarinin tipleri (sema ile ayni adlar).
+2. `site/src/mock/index.ts` ve `site/src/mock/*.ts`: kurgusal veri; dosya basindaki yorumlar "bilerek konan durumlari" (taslak, pasif kisi ...) listeler.
+3. `site/src/lib/veri.ts`: once dosya basindaki kural ozeti, sonra "Kurallar" bolumu (`yayinGorunurMu`, `kararGorunurMu`, `alanGorunurMu`), en sonda sayfalarin cagirdigi `...Getir` fonksiyonlari.
+4. `site/src/layouts/Temel.astro`: her sayfanin `<head>`'i, menu, dil secici; footer `components/AltBilgi.astro`.
+5. Bir sayfa uretilirken akis (ornek `/ekip/ayse-yilmaz`):
+   `src/pages/ekip/[slug].astro` (getStaticPaths) -> `kisiDetaylariGetir('tr')` (veri.ts) -> `tablolariYukle()` -> `src/mock` -> sekillendirilmis `KisiDetay` -> `components/KisiSayfasi.astro` -> `layouts/Temel.astro` -> `dist/ekip/ayse-yilmaz.html`.
+6. Tarayicida calisan kod yalnizca iki kucuk dosya: `src/scripts/filtre.ts`, `src/scripts/iletisim.ts`.
+7. Testler: `test/birim` (kurallar, veri), `test/cikti` (uretilen HTML), `test/e2e` (tarayici). Her test dosyasinin `describe` basligi korudugu kuralin adidir ("kural: ...").
+
+### 7. Veri modeli onerileri ve kapsam disi
+
+Asagidaki "Veri modeli onerileri" (V1-V2) ve "Kapsam disi notlari" bolumlerinde.
+
+### 8. Dogrulama
+
+Asagidaki "Dogrulama" bolumunde: paket paket test sayilari, bozarak dogrulanan testler ve "Son dogrulama" satiri.
+
+### 9. Calistirilan git komutlari
+
+Belgenin sonunda, sirali ve her biri bir cumleyle.
+
+### 10. Yoneticiye ozet
+
+Buronun web sitesinin calisan bir ilk surumu hazir: Turkce ve Ingilizce ana sayfa, ekip, calisma alanlari, arabuluculuk, yayinlar, kararlar, iletisim ve yasal sayfalar. Icerik su an ornek (kurgusal) veriyle doluyor; gercek veritabani ve yonetim paneli baglandiginda sayfalar degismeden gercek icerigi gosterecek. Avukatlik reklam yasagi ve kisisel verilerin korunmasi kurallari (ustunluk dili yok, musteri yorumu yok, ziyaretci bilgisi baska sitelere gitmez, kararlar anonim) her derlemede otomatik olarak denetleniyor. Bagimsiz bir inceleme 10 sorun buldu; 9'u giderildi, biri bilerek ertelendi. Siradaki karar buroda: iletisim formunun nereye gidecegi, sicil numaralari ve yasal metinler.
+
+### Acilmayi bekleyen isler (kisa liste)
+
+1. S1: iletisim formu ucu (oneri: kucuk Node ucu -> `iletisim_mesaji`).
+2. Yasal sayfa metinleri (hukukcu); buro unvani ve alan adi (S6).
+3. Canliya gecis: `tablolariYukle()`'yi PostgreSQL okumasina cevirmek; dosyalari derlemede Directus deposundan `dist/dosyalar`'a kopyalamak; Caddy'de `try_files {path}.html`.
 
 ---
 
@@ -380,6 +496,29 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 
 ---
 
+## P9 Son gozden gecirme
+
+**Ne:** `code-review` becerisi (seviye: high) dalin butun farki uzerinde calistirildi: `origin/claude/admiring-mccarthy-c1q56f...HEAD` (yani yalnizca bu gecenin `site/` ve belge isi). 10 bulgu geldi; her biri kodla karsilastirildi.
+
+| # | Bulgu | Dogrulama | Ne yapildi |
+|---|---|---|---|
+| 1 | Saatsiz tarih sabit `+03:00` gece yarisi okunuyor; Istanbul 2016 oncesi kisin `+02:00` idi, eski kararlar bir gun (ve yil basinda bir yil) kayiyor | Gercek (inceleme node ile calistirip gostermis; `2015-01-10` -> "9 Ocak 2015") | **Duzeltildi:** saatsiz tarih UTC ogle olarak okunuyor; her ofsette ayni gun. Test: `bicim.test.ts` "2016 oncesi kis tarihleri" |
+| 2 | Video, haber kaynagi ve harita adresi CMS'den `href`'e semasi denetlenmeden giriyor | Kismen: sema CHECK'i `https://` disini zaten reddediyor; ama `html.ts`'in tehdit modeli (ele gecirilmis editor) icin ikinci kat tutarli | **Duzeltildi:** `httpsAdres()` yalnizca gecerli https adresini gecirir. Test: `veri.test.ts` "javascript: ve semasiz adres" |
+| 3 | `duzMetin` HTML varligi birakiyor, Astro tekrar kaciriyor: "Kira &amp;amp; Tahliye" | Gercek (inceleme calistirip gostermis) | **Duzeltildi:** varliklar cozuluyor. Test: `html.test.ts` "HTML varliklari cozulur" |
+| 4 | `new URL(videoUrl)` bozuk adreste derlemeyi dusurur | Sema CHECK'i bunu engelliyor; #2 ile birlikte kapandi (`httpsAdres` bozuk adresi null yapar) | **Duzeltildi** (#2 ile) |
+| 5 | Ust alan sayfasi gizli alt alanin kisi ve yayinlarini listeliyor | Gercek kural ihlali (mock'ta gizli alan bos oldugu icin testlerde gorunmuyordu) | **Duzeltildi:** `alanVeAltlari` yalnizca gorunur altlari alir. Test: `veri.test.ts` "gizli alt alanin kisi ve yayinlari" |
+| 6 | Burodan ayrilan kisi yazar filtresinde secenek oluyor | Gercek (Deniz Unal filtrede gorunuyordu) | **Duzeltildi:** `kisiId` yalnizca aktif kiside dolu. Test: `veri.test.ts` "ayrilan yazar ekipten sayilmaz" |
+| 7 | JS yokken iletisim formu kisisel veriyi var olmayan `/api/iletisim`'e POST ediyor | Gercek (KVKK acisindan en onemli bulgu) | **Duzeltildi:** form `hidden` gelir, betik acar; JS yoksa yalnizca adres/telefon/e-posta. Test: `iletisim.e2e.ts` "JS yoksa form gorunmez" |
+| 8 | Her sayfa footer icin butun sabit sayfalari `sanitize-html`'den geciriyor | Gercek ama etkisi olculemeyecek kadar kucuk (67 sayfa, derleme ~0,4 sn) | **Duzeltilmedi:** sadelik icin. Canlida `tablolariYukle()` onbelleklenecegi icin asil maliyet orada cozulur; sayfa sayisi binlere cikarsa yeniden bakilir |
+| 9 | `digerDilinde` `metinler.ts`'deki `digerDil`'in kopyasi | Gercek | **Duzeltildi:** `digerDil` kullaniliyor |
+| 10 | `[sayfa].astro` ve `en/[sayfa].astro`'da ayni liste ve filtre | Gercek | **Duzeltildi:** liste `veri.ts`'e tasindi (`icerikSayfalariGetir`) |
+
+**Bozarak dogrulama (P9):** #5 ve #2 duzeltmeleri gecici olarak geri alindi; ilgili iki birim testi kirmiziya dondu, sonra geri yuklendi.
+
+**Ders:** Gizli alt alan (#5) ve ayrilan yazar (#6) icin mock'ta "bilerek konan durum" vardi ama hepsi degil: gizli alanin bagli kisisi yoktu. Kural testleri artik `kopya()` ile bu durumu kendisi kuruyor.
+
+---
+
 ## Kararlar tablosu
 
 | # | Karar | Gerekce | Kim karar verdi | Plandan sapma mi |
@@ -424,6 +563,9 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | K38 | Menu, klavye ve mobil testleri P7'de (P8 degil) | Menu bu pakette tamamlandi; ayni pakette test edilmesi dogal | ben karar verdim | hayir |
 | K39 | axe ve mobil testleri dist'teki butun sayfalarda | Elle liste eskiyor; e2e suresi ~1 dakika, kabul edilebilir | ben karar verdim | hayir |
 | K40 | Profil `title`'inda unvan | TR/EN profil basliklari ayirt edilsin; arama sonucunda daha bilgilendirici | ben karar verdim | hayir |
+| K41 | Iletisim formu JS ile acilir (HTML'de `hidden`) | Uc yokken JS'siz gonderim kisisel veriyi 404'e POST ediyordu (inceleme #7) | ben karar verdim | hayir |
+| K42 | CMS'den gelen dis adresler veri modulunde https suzgecinden gecer | Sema CHECK'ine ek ikinci kat (inceleme #2) | ben karar verdim | hayir |
+| K43 | Footer'daki tekrarli temizleme (inceleme #8) bilerek birakildi | Etki olculemeyecek kadar kucuk; sadelik | ben karar verdim | hayir |
 
 ---
 
@@ -455,6 +597,7 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | P6 | 0 hata | 239/239 | 52/52 | 35/35 |
 | P7 | 0 hata | 239/239 | 64/64 | 59/59 |
 | P8 | 0 hata | 239/239 | 69/69 | 153/153 |
+| P9 | 0 hata | 245/245 | 69/69 | 154/154 |
 
 **Bozarak dogrulanan testler:**
 | Test | Nasil bozuldu | Sonuc |
@@ -479,7 +622,11 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | `site-haritasi.test.ts` | Sitemap'ten `/ekip` iceren adresler filtreyle dislandi | kirmizi, geri alindi |
 | `erisilebilirlik.e2e.ts` (axe) | `--renk-metin-ikincil` `#b0b4ba` yapildi | `color-contrast` ihlali, kirmizi, geri alindi |
 
-- Son dogrulama: P8 sonu, 12 Ekim 2026 02:28 (Europe/Istanbul): check 0 hata, birim 239, cikti 69, e2e 153; hepsi yesil.
+| `veri.test.ts` (P9: gizli alt alan, https suzgeci) | `alanVeAltlari`'ndan gorunurluk sarti ve `httpsAdres`'ten https denetimi silindi | iki test kirmizi, geri alindi |
+
+**Toplam:** 468 test (birim + mock butunluk 245, dist 69, e2e 154; e2e'nin 134'u axe ve mobil olarak 67 sayfanin her biri icin).
+
+- Son dogrulama: P9 sonu, 12 Ekim 2026 02:33 (Europe/Istanbul): `npm run check` 0 hata; `npm run test:hepsi` (build + birim 245 + cikti 69 + e2e 154) hepsi yesil.
 
 ---
 
@@ -494,6 +641,7 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 - **P6 Kararlar:** Yalnizca TR karar listesi (mahkeme, yil, alan, mevzuat filtresi) ve detay sayfasi (kunye, mevzuat maddeleri, anonim metin, ilgili yayinlar) eklendi; yayin-karar baglantisi iki yonlu oldu. Ofis davasi ve sonuc dili icin dist testleri yazildi.
 - **P7 Ana sayfa, iletisim, yasal sayfalar:** TR/EN ana sayfa (giris, alanlar, arabuluculuk, son yayinlar/kararlar, ekip), iletisim sayfasi ve HTML dogrulamali form (gonderim ucu yok, "gonderilmedi" der), footer'da yasal sayfa baglantilari ve tam menu eklendi. Form, reklam kurallari, klavye ve mobil tasma testleri yazildi; mobil testi filtre formundaki tasmayi buldu, duzeltildi.
 - **P8 Kalite gecisi:** axe ve mobil testleri dist'teki butun sayfalara genisletildi; site haritasi, benzersiz title/canonical ve 404 durum kodu testleri eklendi. Ayni profil basliklari ve yorumlardaki Turkce harfler duzeltildi.
+- **P9 Son gozden gecirme:** Bagimsiz kod incelemesinin 10 bulgusundan 9'u duzeltildi (2016 oncesi tarih kaymasi, cift HTML kacisi, gizli alt alan sizintisi, ayrilan yazarin filtrede gorunmesi, JS'siz formun kisisel veriyi 404'e gondermesi, dis adreslerde https suzgeci, iki kod tekrari); biri gerekcesiyle birakildi. Sabah ozeti yazildi.
 
 ---
 
@@ -546,3 +694,12 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | 43 | `git diff --cached --name-status` | Hazirlik alaninda yalniz P8 dosyalari oldugunu kontrol etti. |
 | 44 | `git commit -m "Kalite gecisi: testleri butun sayfalara genislet" -m "..."` | P8 commit'i. |
 | 45 | `git push origin worktree-site-gece` | P8'i uzaga gonderdi. |
+| 46 | (beceri) `code-review high origin/claude/admiring-mccarthy-c1q56f...HEAD` | Bagimsiz inceleme; uc nokta (`...`) iki dalin ortak atasindan bu yana yalnizca bu dalin degisikliklerini karsilastirir (yalniz okuma). |
+| 47 | `git diff --no-index --stat <yedek> src/lib/veri.ts` | Bozarak dogrulamada gecici degisikligin yalniz iki satir oldugunu gordu. |
+| 48 | `git add docs/site-gece-calismasi.md site/src site/test` | P9 dosyalarini acik yollarla hazirlik alanina koydu. |
+| 49 | `git diff --cached --name-status` | Hazirlik alaninda yalniz P9 dosyalari oldugunu kontrol etti. |
+| 50 | `git commit -m "Inceleme bulgularini duzelt ve sabah raporunu yaz" -m "..."` | P9 commit'i. |
+| 51 | `git push origin worktree-site-gece` | P9'u uzaga gonderdi. |
+| 52 | `git log --oneline 0439ad0..HEAD` | Hash listesini cikardi (yalniz okuma). |
+| 53 | `git add docs/site-gece-calismasi.md` ve `git commit -m "Belgeye commit listesini ekle" -m "..."` | Hash listesini ayri bir belge commit'iyle ekledi (hash commit'ten once bilinemedigi icin). |
+| 54 | `git push origin worktree-site-gece` | Son belge commit'ini uzaga gonderdi. |

@@ -5,9 +5,10 @@ import type { Dil } from './metinler';
 const SAAT_DILIMI = 'Europe/Istanbul';
 const YEREL: Record<Dil, string> = { tr: 'tr-TR', en: 'en-GB' };
 
-// 'YYYY-AA-GG' (date sutunu) saatsiz gelir; Istanbul gece yarisi olarak okunur ki gun kaymasin.
+// 'YYYY-AA-GG' (date sutunu) saatsiz gelir; UTC ogle olarak okunur. Istanbul 2016'dan once kisin
+// +02:00 idi; sabit +03:00 gece yarisi o tarihleri bir gun geriye kaydirirdi. Ogle her ofsette ayni gun.
 function tarihOku(deger: string): Date {
-  return /^\d{4}-\d{2}-\d{2}$/.test(deger) ? new Date(`${deger}T00:00:00+03:00`) : new Date(deger);
+  return /^\d{4}-\d{2}-\d{2}$/.test(deger) ? new Date(`${deger}T12:00:00Z`) : new Date(deger);
 }
 
 export function tarihBicimle(deger: string, dil: Dil): string {

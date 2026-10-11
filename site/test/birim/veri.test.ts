@@ -93,6 +93,11 @@ describe('kural: pasif kisi (aktif = false) gorunmez', () => {
     ]);
   });
 
+  it('ayrilan yazar ekipten sayilmaz: kisiId bos (yazar filtresine girmez)', async () => {
+    const y = (await yayinlariGetir('tr', s)).find((x) => x.id === 14)!;
+    expect(y.yazarlar.map((a) => a.kisiId)).toEqual([null, 2]);
+  });
+
   it('calisma alani sayfasinin kisi listesinde yok', async () => {
     const borclar = (await calismaAlaniDetaylariGetir('tr', s)).find((a) => a.slug === 'borclar-hukuku')!;
     expect(borclar.kisiler.map((k) => k.slug)).not.toContain('deniz-unal');
@@ -117,6 +122,17 @@ describe('kural: gizli calisma alani (gorunur = false) gorunmez', () => {
     expect(idler).not.toContain(1);
     expect(idler).not.toContain(3);
     expect(idler).toContain(2);
+  });
+
+  it('gizli alt alanin kisi ve yayinlari ust alanin sayfasina tasinmaz', async () => {
+    // Kerem Isik ve yayin 11 yalnizca Ceza (3) ve Idare (7) alanlarina bagli; ikisi gizlenince
+    // Kamu Hukuku sayfasinda gorunmemeliler. Ayse Yilmaz Imar (4) uzerinden kalmali.
+    const t = kopya();
+    for (const a of t.calisma_alani) if (a.id === 3 || a.id === 7) a.gorunur = false;
+    const kamu = (await calismaAlaniDetaylariGetir('tr', { simdi: SIMDI, tablolar: t })).find((a) => a.id === 1)!;
+    expect(kamu.kisiler.map((k) => k.slug)).not.toContain('kerem-isik');
+    expect(kamu.kisiler.map((k) => k.slug)).toContain('ayse-yilmaz');
+    expect(kamu.yayinlar.map((y) => y.id)).not.toContain(11);
   });
 
   it('iki seviyeli agac siralama alanina gore', async () => {
@@ -182,6 +198,25 @@ describe('kural: zengin metin veri modulunden temizlenmis cikar', () => {
     const y3 = (await yayinDetaylariGetir('tr', s)).find((y) => y.id === 3)!;
     expect(y3.icerik).not.toMatch(/<script|onclick|javascript:|<h1/i);
     expect(y3.icerik).toContain('<h2>Editörün yanlışlıkla eklediği büyük başlık</h2>');
+  });
+});
+
+describe('kural: CMS\'den gelen dis baglanti yalnizca gecerli https adresiyse kullanilir (XSS)', () => {
+  it('javascript: ve semasiz adres baglantiya donusmez; derleme de dusmez', async () => {
+    // Sema bu degerleri CHECK ile reddeder; veri modulu yine de ikinci kat olarak suzer.
+    const t = kopya();
+    t.yayin.find((y) => y.id === 5)!.video_url = 'javascript:alert(1)';
+    t.yayin.find((y) => y.id === 7)!.kaynak_url = 'haber.example.net/semasiz';
+    t.site_ayar[0].harita_url = 'javascript:alert(1)';
+    const detay = await yayinDetaylariGetir('tr', { simdi: SIMDI, tablolar: t });
+    expect(detay.find((y) => y.id === 5)!.videoUrl).toBeNull();
+    expect(detay.find((y) => y.id === 7)!.kaynak?.url).toBeNull();
+    expect((await siteAyariGetir('tr', { simdi: SIMDI, tablolar: t })).haritaUrl).toBeNull();
+  });
+
+  it('gecerli https adresleri oldugu gibi kalir', async () => {
+    const detay = await yayinDetaylariGetir('tr', s);
+    expect(detay.find((y) => y.id === 5)!.videoUrl).toBe('https://video.example.org/arabuluculuk-sureci');
   });
 });
 

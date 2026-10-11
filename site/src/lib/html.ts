@@ -29,7 +29,18 @@ export function htmlTemizle(html: string | null | undefined): string {
 }
 
 // Meta description gibi duz metin isteyen yerler icin: etiketleri atar, boslugu sadelestirir.
+// sanitize-html cikisi HTML varligi tasir ('&amp;'); Astro metni zaten kendisi kacirdigi icin
+// varliklar burada cozulur, yoksa sayfada "&amp;amp;" gorunur. '&amp;' en son: '&amp;lt;' -> '&lt;'.
 export function duzMetin(html: string | null | undefined): string {
   if (!html) return '';
-  return sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} }).replace(/\s+/g, ' ').trim();
+  return sanitizeHtml(html, { allowedTags: [], allowedAttributes: {} })
+    .replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n: string) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
 }

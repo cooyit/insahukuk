@@ -1,5 +1,16 @@
 import { expect, test } from '@playwright/test';
 
+test.describe('kural: JS yoksa form gorunmez (kisisel veri var olmayan adrese gitmesin)', () => {
+  test.use({ javaScriptEnabled: false });
+
+  test('form gizli; adres, telefon ve e-posta gorunur', async ({ page }) => {
+    await page.goto('/iletisim');
+    await expect(page.getByRole('button', { name: 'Gönder' })).toBeHidden();
+    await expect(page.locator('main').getByRole('link', { name: 'info@ornek.av.tr' })).toBeVisible();
+    await expect(page.locator('main').getByText('Örnek Mah. Örnek Cad. No: 1, Şişli / İstanbul')).toBeVisible();
+  });
+});
+
 test.describe('kural: iletisim formu HTML ile dogrulanir; sahte "gonderildi" yok', () => {
   test('bos gonderimde zorunlu alanlar gecersiz ve dogrulama mesaji var; sayfa degismez', async ({ page }) => {
     await page.goto('/iletisim');

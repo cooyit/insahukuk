@@ -3,7 +3,8 @@
 // dis baglanti (gomme yok, KVKK), ve iletisim formu.
 // Form: dogrulama HTML ile (required, type=email, maxlength, pattern). Gonderilecek sunucu ucu
 // henuz yok (acik soru S1): src/scripts/iletisim.ts gecerli gonderimi durdurur ve "gonderilmedi"
-// der; sahte "gonderildi" mesaji yok. Alan adlari ve sinirlari iletisim_mesaji tablosuyla ayni.
+// der; sahte "gonderildi" mesaji yok. Form HTML'de "hidden"; betik acar. JS yoksa form gorunmez,
+// kisisel veri var olmayan adrese gonderilemez; adres/telefon/e-posta yine gorunur. Alan adlari ve sinirlari iletisim_mesaji tablosuyla ayni.
 // Telefon pattern'inde parantezler kacisli: tarayicilar pattern'i "v" bayragiyla derler; kacissiz
 // "(" gecersiz sayilir ve kural sessizce yok sayilir.
 import Temel from '../layouts/Temel.astro';
@@ -57,7 +58,7 @@ const konular = Object.entries(konuTurleri[dil]);
       <p class="uyari" id="ozel-veri-uyarisi">{m.formOzelVeriUyarisi}</p>
       <p class="ikincil">{m.formEtkinDegilNotu}</p>
 
-      <form method="post" action="/api/iletisim" class="form" data-iletisim-formu aria-describedby="ozel-veri-uyarisi">
+      <form method="post" action="/api/iletisim" class="form" data-iletisim-formu aria-describedby="ozel-veri-uyarisi" hidden>
         <p class="ikincil">{m.formZorunlu}</p>
 
         <label for="f-ad">{m.formAd} *</label>

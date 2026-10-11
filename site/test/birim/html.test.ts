@@ -41,6 +41,12 @@ describe('kural: zengin metin derlemede izin listesiyle temizlenir (XSS)', () =>
     expect(htmlTemizle(undefined)).toBe('');
   });
 
+  it('duz metin: HTML varliklari cozulur (Astro tekrar kacirir; cift kacis olmasin)', () => {
+    expect(duzMetin('<p>Kira &amp; Tahliye</p>')).toBe('Kira & Tahliye');
+    expect(duzMetin('<p>a &lt;b&gt; &quot;c&quot; &#39;d&#39;</p>')).toBe('a <b> "c" \'d\'');
+    expect(duzMetin('&amp;lt;')).toBe('&lt;');
+  });
+
   it('duz metin: etiketler atilir, bosluk sadelesir', () => {
     expect(duzMetin('<h2>Baş</h2>\n<p>ilk   paragraf</p><script>x</script>')).toBe('Baş ilk paragraf');
   });
