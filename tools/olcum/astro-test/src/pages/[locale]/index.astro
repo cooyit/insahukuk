@@ -1,0 +1,6 @@
+---
+import Base from '../../layouts/Base.astro';
+export function getStaticPaths() { return [{ params: { locale: 'tr' } }, { params: { locale: 'en' } }]; }
+const { locale } = Astro.params;
+---
+<Base title="Ana Sayfa" locale={locale}><h1>İnşa Hukuk ve Arabuluculuk</h1><a href={`/${locale}/liste`}>Yayınlar</a></Base>

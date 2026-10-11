@@ -1,0 +1,14 @@
+---
+import { areas } from '../lib/data';
+const { title, locale = 'tr', description = '' } = Astro.props;
+---
+<html lang={locale}><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>{title} | İnşa Hukuk</title><meta name="description" content={description} />
+<link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
+<script type="application/ld+json" set:html={JSON.stringify({ '@context': 'https://schema.org', '@type': 'LegalService', name: 'İnşa Hukuk' })} />
+<style>body{font-family:Georgia,serif;max-width:72rem;margin:auto;padding:1rem;color:#15202B;background:#ECE7DE}nav ul{display:flex;flex-wrap:wrap;gap:.5rem;list-style:none;padding:0}article img{max-width:100%;height:auto}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(16rem,1fr));gap:1rem}</style>
+</head><body>
+<header><a href={`/${locale}/`}>İnşa Hukuk ve Arabuluculuk</a><nav><ul>{areas.map((a, i) => <li><a href={`/${locale}/alan-${i}`}>{a}</a></li>)}</ul></nav></header>
+<main><slot /></main>
+<footer><p>© 2026 İnşa Hukuk — KVKK · Çerez Politikası · Künye</p></footer>
+</body></html>

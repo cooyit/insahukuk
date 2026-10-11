@@ -1,0 +1,13 @@
+---
+import { Image } from 'astro:assets';
+import Base from '../../../layouts/Base.astro';
+import { articles, cover } from '../../../lib/data';
+export function getStaticPaths({ paginate }) {
+  return ['tr', 'en'].flatMap((locale) => paginate(articles(locale).map(({ slug, title, excerpt, cover, date }) => ({ slug, title, excerpt, cover, date })), { pageSize: 20, params: { locale } }));
+}
+const { page } = Astro.props; const { locale } = Astro.params;
+---
+<Base title={`Yayınlar ${page.currentPage}`} locale={locale}>
+  <div class="grid">{page.data.map((a) => <a href={`/${locale}/yazi/${a.slug}`}><Image src={cover(a.cover)} alt="" width={400} /><h3>{a.title}</h3><p>{a.excerpt}</p></a>)}</div>
+  <p>{page.url.prev && <a href={page.url.prev}>←</a>} {page.url.next && <a href={page.url.next}>→</a>}</p>
+</Base>
