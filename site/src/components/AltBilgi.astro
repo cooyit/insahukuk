@@ -1,48 +1,84 @@
 ---
-// Footer: buro unvani, adres, telefon, e-posta, baro bilgisi ve "bilgilendirme amaclidir" notu
-// (docs/inceleme-2026-10-09.md 6.3). Bilgiler site_ayar'dan gelir.
+// Footer: buro unvani, adres, telefon, e-posta, baro bilgisi, yasal sayfa baglantilari ve
+// "bilgilendirme amaclidir" notu (docs/inceleme 6.3). Bilgiler site_ayar'dan gelir.
+// Yasal sayfalar yalnizca TR (S5); EN sitede de TR sayfalara lang/hreflang="tr" ile baglanir.
 import { telefonBicimle } from '../lib/bicim';
 import { metinler, type Dil } from '../lib/metinler';
-import type { SiteAyari } from '../lib/veri';
+import type { SayfaIcerik, SiteAyari } from '../lib/veri';
 
 interface Props {
   dil: Dil;
   ayar: SiteAyari;
+  yasalSayfalar: SayfaIcerik[];
 }
 
-const { dil, ayar } = Astro.props;
+const { dil, ayar, yasalSayfalar } = Astro.props;
 const m = metinler[dil];
 ---
 
 <footer class="alt">
-  <div class="kap">
-    <p class="site-adi-alt">{ayar.resmiUnvan}</p>
-    <address>
-      {ayar.adres && <span>{ayar.adres}</span>}
-      {
-        ayar.telefon && (
-          <span>
-            {m.telefon}: <a href={`tel:${ayar.telefon}`}>{telefonBicimle(ayar.telefon)}</a>
-          </span>
-        )
-      }
-      {
-        ayar.eposta && (
-          <span>
-            {m.eposta}: <a href={`mailto:${ayar.eposta}`}>{ayar.eposta}</a>
-          </span>
-        )
-      }
-    </address>
-    {ayar.barolar.length > 0 && <p>{m.baro}: {ayar.barolar.join(', ')}</p>}
-    {ayar.altBilgiNotu && <p class="not">{ayar.altBilgiNotu}</p>}
+  <div class="kap alt-kap">
+    <div>
+      <p class="site-adi-alt">{ayar.resmiUnvan}</p>
+      <address>
+        {ayar.adres && <span>{ayar.adres}</span>}
+        {
+          ayar.telefon && (
+            <span>
+              {m.telefon}: <a href={`tel:${ayar.telefon}`}>{telefonBicimle(ayar.telefon)}</a>
+            </span>
+          )
+        }
+        {
+          ayar.eposta && (
+            <span>
+              {m.eposta}: <a href={`mailto:${ayar.eposta}`}>{ayar.eposta}</a>
+            </span>
+          )
+        }
+      </address>
+      {ayar.barolar.length > 0 && <p>{m.baro}: {ayar.barolar.join(', ')}</p>}
+    </div>
+    {
+      yasalSayfalar.length > 0 && (
+        <nav aria-label={m.yasalSayfalar}>
+          <ul class="yasal">
+            {yasalSayfalar.map((s) => (
+              <li>
+                <a href={s.url} lang={dil === 'tr' ? undefined : 'tr'} hreflang={dil === 'tr' ? undefined : 'tr'}>
+                  {s.baslik}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )
+    }
   </div>
+  {ayar.altBilgiNotu && <p class="kap not">{ayar.altBilgiNotu}</p>}
 </footer>
 
 <style>
+  .alt-kap {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--bosluk) calc(var(--bosluk) * 3);
+  }
+
   address {
     font-style: normal;
     display: flex;
     flex-direction: column;
+  }
+
+  .yasal {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .yasal li + li {
+    margin-top: 0.25rem;
   }
 </style>

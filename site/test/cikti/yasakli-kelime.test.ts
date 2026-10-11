@@ -7,7 +7,7 @@ import { distVarMi, etiketler, gorunenMetin, htmlSayfalari, nitelik, type Sayfa 
 const YASAKLI_TR = [
   'uzman', 'en iyi', 'lider', 'öncü', 'önde gelen', 'başarılı', 'garanti', 'ücretsiz', 'kazandık',
   'kazanılan dava', 'yıllık tecrübe', 'yıllık deneyim', 'referanslar', 'müvekkil yorum', 'ofis davası',
-  'başarı oranı', 'kesin sonuç',
+  'başarı oranı', 'kesin sonuç', 'ödül',
 ];
 const YASAKLI_EN = [
   'expert', 'best', 'leading', 'leader', 'pioneer', 'top-tier', 'top tier', 'award', 'guarantee',

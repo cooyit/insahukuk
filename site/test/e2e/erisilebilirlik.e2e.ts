@@ -14,6 +14,7 @@ const SAYFALAR = [
   '/yayinlar/kira-artis-oranina-iliskin-degerlendirme', // haber
   '/yayinlar/velayet-duzenlemesinde-cocugun-yarari', // PDF ekli
   '/kararlar', '/kararlar/yargitay-3-hd-e-2024-1111-k-2025-2222',
+  '/hakkimizda', '/en/about', '/iletisim', '/en/contact',
 ];
 
 test.describe('kural: WCAG 2.2 AA, ciddi ve kritik axe ihlali yok', () => {

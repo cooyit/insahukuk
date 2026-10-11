@@ -1,0 +1,189 @@
+---
+// Iletisim (TR /iletisim, EN /en/contact): site_ayar'dan adres/telefon/e-posta, harita yalnizca
+// dis baglanti (gomme yok, KVKK), ve iletisim formu.
+// Form: dogrulama HTML ile (required, type=email, maxlength, pattern). Gonderilecek sunucu ucu
+// henuz yok (acik soru S1): src/scripts/iletisim.ts gecerli gonderimi durdurur ve "gonderilmedi"
+// der; sahte "gonderildi" mesaji yok. Alan adlari ve sinirlari iletisim_mesaji tablosuyla ayni.
+// Telefon pattern'inde parantezler kacisli: tarayicilar pattern'i "v" bayragiyla derler; kacissiz
+// "(" gecersiz sayilir ve kural sessizce yok sayilir.
+import Temel from '../layouts/Temel.astro';
+import KirintiYolu from './KirintiYolu.astro';
+import { telefonBicimle } from '../lib/bicim';
+import { konuTurleri, metinler, type Dil } from '../lib/metinler';
+import { sayfaGetir, siteAyariGetir } from '../lib/veri';
+
+interface Props {
+  dil: Dil;
+}
+
+const { dil } = Astro.props;
+const m = metinler[dil];
+const [sayfa, ayar, aydinlatma] = await Promise.all([
+  sayfaGetir('iletisim', dil),
+  siteAyariGetir(dil),
+  sayfaGetir('kvkk_aydinlatma', 'tr'),
+]);
+if (!sayfa) throw new Error(`iletisim sayfasi verisi yok (${dil})`);
+const konular = Object.entries(konuTurleri[dil]);
+---
+
+<Temel baslik={sayfa.seoBaslik ?? sayfa.baslik} aciklama={sayfa.aciklama} karsilik={sayfa.karsilik}>
+  <KirintiYolu dil={dil} ogeler={[{ ad: sayfa.baslik }]} />
+  <h1>{sayfa.baslik}</h1>
+  <div class="icerik" set:html={sayfa.icerik} />
+
+  <div class="iletisim">
+    <section aria-labelledby="bilgiler">
+      <h2 id="bilgiler">{ayar.resmiUnvan}</h2>
+      <dl>
+        {ayar.adres && (<><dt>{m.adres}</dt><dd>{ayar.adres}</dd></>)}
+        {ayar.telefon && (<><dt>{m.telefon}</dt><dd><a href={`tel:${ayar.telefon}`}>{telefonBicimle(ayar.telefon)}</a></dd></>)}
+        {ayar.eposta && (<><dt>{m.eposta}</dt><dd><a href={`mailto:${ayar.eposta}`}>{ayar.eposta}</a></dd></>)}
+      </dl>
+      {
+        ayar.haritaUrl && (
+          <p>
+            <a href={ayar.haritaUrl} rel="external noreferrer">
+              {m.haritadaAc}
+            </a>
+            <span class="ikincil"> ({m.disBaglanti})</span>
+          </p>
+        )
+      }
+    </section>
+
+    <section aria-labelledby="form-baslik">
+      <h2 id="form-baslik">{m.formBaslik}</h2>
+      <p class="uyari" id="ozel-veri-uyarisi">{m.formOzelVeriUyarisi}</p>
+      <p class="ikincil">{m.formEtkinDegilNotu}</p>
+
+      <form method="post" action="/api/iletisim" class="form" data-iletisim-formu aria-describedby="ozel-veri-uyarisi">
+        <p class="ikincil">{m.formZorunlu}</p>
+
+        <label for="f-ad">{m.formAd} *</label>
+        <input id="f-ad" name="ad" type="text" required maxlength="120" autocomplete="name" />
+
+        <label for="f-eposta">{m.formEposta} *</label>
+        <input id="f-eposta" name="eposta" type="email" required maxlength="254" autocomplete="email" />
+
+        <label for="f-telefon">{m.formTelefon}</label>
+        <input
+          id="f-telefon"
+          name="telefon"
+          type="tel"
+          maxlength="20"
+          autocomplete="tel"
+          pattern="[0-9 +\(\)\-]{7,20}"
+          aria-describedby="f-telefon-bicim"
+        />
+        <small id="f-telefon-bicim" class="ikincil">{m.formTelefonBicim}</small>
+
+        <label for="f-konu">{m.formKonu} *</label>
+        <select id="f-konu" name="konu_turu" required>
+          <option value="">{m.formKonuSeciniz}</option>
+          {konular.map(([deger, ad]) => <option value={deger}>{ad}</option>)}
+        </select>
+
+        <label for="f-mesaj">{m.formMesaj} *</label>
+        <textarea id="f-mesaj" name="mesaj" required maxlength="5000" rows="6"></textarea>
+
+        {ayar.aydinlatmaSurumu && <input type="hidden" name="aydinlatma_surumu" value={ayar.aydinlatmaSurumu} />}
+
+        <p>
+          {m.formAydinlatmaOnce}
+          {aydinlatma && <a href={aydinlatma.url} lang="tr" hreflang="tr">{aydinlatma.baslik}</a>}
+          {m.formAydinlatmaSonra}
+        </p>
+
+        <button type="submit">{m.formGonder}</button>
+        <p class="durum" role="status" data-form-durum data-mesaj={m.formEtkinDegilSonuc}></p>
+      </form>
+    </section>
+  </div>
+</Temel>
+
+<script>
+  import '../scripts/iletisim.ts';
+</script>
+
+<style>
+  .iletisim {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+    gap: calc(var(--bosluk) * 2);
+    margin-top: calc(var(--bosluk) * 2);
+  }
+
+  @media (max-width: 48rem) {
+    .iletisim {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.25rem 1rem;
+  }
+
+  dt {
+    font-weight: 600;
+  }
+
+  dd {
+    margin: 0;
+  }
+
+  .uyari {
+    border-left: 4px solid var(--renk-odak);
+    padding-left: 0.75rem;
+  }
+
+  .form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .form label {
+    font-weight: 600;
+    margin-top: 0.75rem;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+    padding: 0.5rem;
+    border: 1px solid var(--renk-metin-ikincil);
+    border-radius: var(--kose);
+    background: var(--renk-zemin);
+    color: var(--renk-metin);
+    max-width: 100%;
+  }
+
+  button {
+    align-self: flex-start;
+    margin-top: var(--bosluk);
+    background: var(--renk-vurgu);
+    color: #fff;
+    border-color: var(--renk-vurgu);
+    cursor: pointer;
+    padding-inline: 1.25rem;
+  }
+
+  /* Gecersiz alan yalnizca kullanici dokunduktan sonra isaretlenir (bos form kirmizi acilmasin). */
+  input:user-invalid,
+  select:user-invalid,
+  textarea:user-invalid {
+    border-color: #b00020;
+    outline: 1px solid #b00020;
+  }
+
+  .durum:not(:empty) {
+    font-weight: 600;
+    border-left: 4px solid var(--renk-odak);
+    padding-left: 0.75rem;
+  }
+</style>

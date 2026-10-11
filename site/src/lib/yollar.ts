@@ -3,23 +3,27 @@
 import { metinler, type Dil } from './metinler';
 
 // Kararlar yalnizca Turkce oldugu icin 'en' altinda kararlar yolu bilerek yok.
-// arabuluculuk: sayfa tablosundaki slug'la ayni olmali (menu icin burada da yazili);
-// farkli olursa menu kirik baglanti verir ve dist'teki baglanti testi kirmiziya doner.
+// hakkimizda, arabuluculuk, iletisim: sayfa tablosundaki slug'la ayni olmali (menu icin burada
+// da yazili); farkli olursa menu kirik baglanti verir ve dist'teki baglanti testi kirmiziya doner.
 export const yollar = {
   tr: {
     anaSayfa: '/',
-    ekip: '/ekip',
+    hakkimizda: '/hakkimizda',
     calismaAlanlari: '/calisma-alanlari',
     arabuluculuk: '/arabuluculuk',
+    ekip: '/ekip',
     yayinlar: '/yayinlar',
     kararlar: '/kararlar',
+    iletisim: '/iletisim',
   },
   en: {
     anaSayfa: '/en',
-    ekip: '/en/team',
+    hakkimizda: '/en/about',
     calismaAlanlari: '/en/practice-areas',
     arabuluculuk: '/en/mediation',
+    ekip: '/en/team',
     yayinlar: '/en/publications',
+    iletisim: '/en/contact',
   },
 } satisfies Record<Dil, Record<string, string>>;
 
@@ -42,15 +46,17 @@ export interface MenuOgesi {
 }
 
 // Menu sirasi docs/inceleme 6.3: Hakkimizda, Calisma Alanlari, Arabuluculuk, Ekip, Yayinlar,
-// Kararlar, Iletisim. Bir oge, o sayfa gercekten uretildiginde eklenir; yoksa kirik baglanti olur.
+// Kararlar, Iletisim.
 export function menuOgeleri(dil: Dil): MenuOgesi[] {
   const m = metinler[dil];
   return [
+    { ad: m.hakkimizda, yol: yollar[dil].hakkimizda },
     { ad: m.calismaAlanlari, yol: yollar[dil].calismaAlanlari },
     { ad: m.arabuluculuk, yol: yollar[dil].arabuluculuk },
     { ad: m.ekip, yol: yollar[dil].ekip },
     { ad: m.yayinlar, yol: yollar[dil].yayinlar },
     // Kararlar yalnizca Turkce: EN menude yok (S3).
     ...(dil === 'tr' ? [{ ad: metinler.tr.kararlar, yol: yollar.tr.kararlar }] : []),
+    { ad: m.iletisim, yol: yollar[dil].iletisim },
   ];
 }

@@ -652,6 +652,14 @@ export async function sayfaGetir(anahtar: string, dil: Dil, secenek?: Secenek): 
   return s ? sayfaIcerigi(b, s.id, dil) : undefined;
 }
 
+// Footer'daki yasal sayfalar (docs/inceleme 6.3). Metinleri hukukcu yazacak; bu gece taslak.
+// Yalnizca TR: EN sitede de footer bu TR sayfalara baglanir (S5).
+const YASAL_SAYFALAR = ['kvkk_aydinlatma', 'cerez_politikasi', 'yasal_uyari', 'kvkk_basvuru'];
+
+export async function yasalSayfalariGetir(secenek?: Secenek): Promise<SayfaIcerik[]> {
+  return (await sayfalariGetir('tr', secenek)).filter((s) => YASAL_SAYFALAR.includes(s.anahtar));
+}
+
 // Bu dilde aktif ve cevirisi olan butun sabit sayfalar, siralama alanina gore.
 export async function sayfalariGetir(dil: Dil, secenek?: Secenek): Promise<SayfaIcerik[]> {
   const b = await baglamKur(dil, secenek);

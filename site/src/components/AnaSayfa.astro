@@ -1,0 +1,158 @@
+---
+// Ana sayfa (TR /, EN /en). docs/inceleme 6.3: kisa ve notr giris, tek "Iletisim" baglantisi,
+// calisma alani gruplari, arabuluculuk blogu, son yayinlar ve kararlar, ekip (yalnizca foto,
+// ad, unvan). Pop-up, video hero, sabit WhatsApp butonu, musteri yorumu yok (inceleme 6.2).
+import Temel from '../layouts/Temel.astro';
+import KisaYayinListesi from './KisaYayinListesi.astro';
+import KisiKarti from './KisiKarti.astro';
+import { isoGun, tarihBicimle } from '../lib/bicim';
+import { digerDil, metinler, type Dil } from '../lib/metinler';
+import { calismaAlanlariGetir, ekibiGetir, kararlariGetir, sayfaGetir, siteAyariGetir, yayinlariGetir } from '../lib/veri';
+import { yollar } from '../lib/yollar';
+
+interface Props {
+  dil: Dil;
+}
+
+const { dil } = Astro.props;
+const m = metinler[dil];
+const ANA_SAYFADA = 3;
+
+const [giris, arabuluculuk, ayar, alanlar, yayinlar, ekip] = await Promise.all([
+  sayfaGetir('ana_sayfa', dil),
+  sayfaGetir('arabuluculuk', dil),
+  siteAyariGetir(dil),
+  calismaAlanlariGetir(dil),
+  yayinlariGetir(dil),
+  ekibiGetir(dil),
+]);
+// Kararlar yalnizca Turkce; EN ana sayfada blok yok.
+const kararlar = dil === 'tr' ? (await kararlariGetir()).slice(0, ANA_SAYFADA) : [];
+---
+
+<Temel
+  baslik={giris?.seoBaslik ?? giris?.baslik ?? m.anaSayfa}
+  aciklama={giris?.aciklama ?? ayar.resmiUnvan}
+  karsilik={yollar[digerDil(dil)].anaSayfa}
+>
+  <section class="giris" aria-labelledby="baslik">
+    <h1 id="baslik">{ayar.resmiUnvan}</h1>
+    {giris && <div class="icerik" set:html={giris.icerik} />}
+    <p><a class="dugme" href={yollar[dil].iletisim}>{m.iletisim}</a></p>
+  </section>
+
+  <section aria-labelledby="alanlar">
+    <h2 id="alanlar">{m.calismaAlanlari}</h2>
+    <div class="gruplar">
+      {
+        alanlar.map((ust) => (
+          <div>
+            <h3>
+              <a href={ust.url}>{ust.ad}</a>
+            </h3>
+            <ul>
+              {ust.altAlanlar.map((alt) => (
+                <li>
+                  <a href={alt.url}>{alt.ad}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </div>
+    <p><a href={yollar[dil].calismaAlanlari}>{m.tumCalismaAlanlari}</a></p>
+  </section>
+
+  {
+    arabuluculuk && (
+      <section class="arabuluculuk" aria-labelledby="arabuluculuk">
+        <h2 id="arabuluculuk">{arabuluculuk.baslik}</h2>
+        <p>{arabuluculuk.aciklama}</p>
+        <p>
+          <a href={arabuluculuk.url}>{m.arabuluculukHakkinda}</a>
+        </p>
+      </section>
+    )
+  }
+
+  <section aria-labelledby="son-yayinlar">
+    <h2 id="son-yayinlar">{m.sonYayinlar}</h2>
+    <KisaYayinListesi dil={dil} yayinlar={yayinlar.slice(0, ANA_SAYFADA)} />
+    <p><a href={yollar[dil].yayinlar}>{m.tumYayinlar}</a></p>
+  </section>
+
+  {
+    kararlar.length > 0 && (
+      <section aria-labelledby="son-kararlar">
+        <h2 id="son-kararlar">{m.sonKararlar}</h2>
+        <ul class="kararlar">
+          {kararlar.map((k) => (
+            <li>
+              <a href={k.url}>{k.konu}</a>
+              <span class="ikincil">
+                {' '}
+                — {k.mahkemeAdi}, <time datetime={isoGun(k.tarih)}>{tarihBicimle(k.tarih, 'tr')}</time>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p>
+          <a href={yollar.tr.kararlar}>{metinler.tr.tumKararlar}</a>
+        </p>
+      </section>
+    )
+  }
+
+  <section aria-labelledby="ekip">
+    <h2 id="ekip">{m.ekibimiz}</h2>
+    <ul class="kart-izgara">
+      {ekip.map((kisi) => <KisiKarti kisi={kisi} />)}
+    </ul>
+  </section>
+</Temel>
+
+<style>
+  section + section {
+    margin-top: calc(var(--bosluk) * 3);
+  }
+
+  .giris h1 {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+  }
+
+  .dugme {
+    display: inline-block;
+    padding: 0.5rem 1.25rem;
+    background: var(--renk-vurgu);
+    color: #fff;
+    border-radius: var(--kose);
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .dugme:hover {
+    background: var(--renk-vurgu-koyu);
+    color: #fff;
+  }
+
+  .gruplar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+    gap: var(--bosluk) calc(var(--bosluk) * 2);
+  }
+
+  .gruplar h3 {
+    margin-bottom: 0.25rem;
+  }
+
+  .arabuluculuk {
+    background: var(--renk-zemin-ikincil);
+    border-radius: var(--kose);
+    padding: var(--bosluk) calc(var(--bosluk) * 1.5);
+  }
+
+  .kararlar li + li {
+    margin-top: 0.5rem;
+  }
+</style>

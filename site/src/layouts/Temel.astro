@@ -3,7 +3,7 @@
 import '../styles/global.css';
 import AltBilgi from '../components/AltBilgi.astro';
 import { dilBelirle, digerDil, metinler } from '../lib/metinler';
-import { siteAyariGetir } from '../lib/veri';
+import { siteAyariGetir, yasalSayfalariGetir } from '../lib/veri';
 import { menuOgeleri, temizYol, yollar } from '../lib/yollar';
 
 interface Props {
@@ -20,7 +20,7 @@ const dil = dilBelirle(Astro.currentLocale);
 const diger = digerDil(dil);
 const m = metinler[dil];
 
-const ayar = await siteAyariGetir(dil);
+const [ayar, yasalSayfalar] = await Promise.all([siteAyariGetir(dil), yasalSayfalariGetir()]);
 const siteAdi = ayar.resmiUnvan;
 const tamBaslik = `${baslik} | ${siteAdi}`;
 const yol = temizYol(Astro.url.pathname);
@@ -84,6 +84,6 @@ function aktifMi(menuYolu: string): boolean {
       <slot />
     </main>
 
-    <AltBilgi dil={dil} ayar={ayar} />
+    <AltBilgi dil={dil} ayar={ayar} yasalSayfalar={yasalSayfalar} />
   </body>
 </html>

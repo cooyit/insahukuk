@@ -21,8 +21,8 @@
 | P4 Calisma alanlari ve arabuluculuk | bitti |
 | P5 Yayinlar | bitti |
 | P6 Kararlar | bitti |
-| P7 Ana sayfa, hakkimizda, iletisim, yasal sayfalar | yapilmadi (sirada) |
-| P8 Kalite gecisi | yapilmadi |
+| P7 Ana sayfa, hakkimizda, iletisim, yasal sayfalar | bitti |
+| P8 Kalite gecisi | yapilmadi (sirada) |
 | P9 Son gozden gecirme | yapilmadi |
 
 ---
@@ -314,6 +314,40 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 
 ---
 
+## P7 Ana sayfa, hakkimizda, iletisim ve yasal sayfalar
+
+**Baslamadan once**
+1. Kaynak: gorev Bolum 5 P7; Bolum 3 (footer icerigi; iletisim formu: aydinlatma baglantisi, ozel nitelikli veri uyarisi, HTML dogrulama, sahte "gonderildi" yok; yasal sayfalar "Taslak - hukuki metin bekleniyor"; pop-up / sabit WhatsApp / video hero yok); `docs/inceleme` 6.2, 6.3 (ana sayfa icerigi ve footer), 7 (KVKK 2026/347: aydinlatma rizadan ayri).
+2. En basit yol: ana sayfa ve iletisim icin iki gorunum bileseni; hakkimizda ve yasal sayfalar P4'teki genel sablondan zaten uretiliyordu, burada menuye ve footer'a baglandi.
+3. Yapmazsam: site girissiz ve iletisimsiz kalir; footer'da yasal baglantilar eksik olur.
+4. Uyum: formda onay kutusu yok (aydinlatma rizaya donusmesin), yalnizca bilgi ve baglanti; harita gomulmez; form gonderim ucu yok ve bunu acikca soyler.
+
+**Ne:**
+- Ana sayfa (`AnaSayfa.astro`, TR `/` ve EN `/en`): h1 buro unvani, `sayfa.ana_sayfa` giris metni, tek "Iletisim" dugmesi, calisma alani gruplari, arabuluculuk blogu (arabuluculuk sayfasinin ozetiyle), son 3 yayin, son 3 karar (yalnizca TR), ekip kartlari.
+- Iletisim (`IletisimSayfasi.astro`, `/iletisim`, `/en/contact`): adres, telefon, e-posta, OpenStreetMap dis baglantisi; form (ad, e-posta, telefon, konu, mesaj; `iletisim_mesaji` sutun adlari ve sinirlari; gizli `aydinlatma_surumu`), ozel nitelikli veri uyarisi, aydinlatma metni baglantisi, "form henuz devrede degil" notu.
+- `src/scripts/iletisim.ts`: gecerli gonderimi durdurup "Form henuz etkin degil; mesajiniz gonderilmedi" yazar. Gecersiz formda tarayici zaten gondermez, kendi mesajlarini gosterir.
+- Menu tamamlandi: Hakkimizda, Calisma Alanlari, Arabuluculuk, Ekip, Yayinlar, Kararlar (yalnizca TR), Iletisim (Turkce yazimiyla).
+- Footer: yasal sayfa baglantilari (`yasalSayfalariGetir`); EN sitede bu baglantilar `lang="tr"` ile TR sayfalara gider.
+
+**Nasil:**
+- Form `method="post" action="/api/iletisim"`: uc yazilinca betik silinir, form dogrudan gider (S1). JS kapaliysa gonderim bu adrese gider ve statik sunucu hata dondurur; formun ustundeki not bunu kullaniciya once soyler.
+- Telefon `pattern`'inde parantezler kacisli: tarayicilar `pattern`'i `v` bayragiyla derler; kacissiz `(` gecersiz sayilip kural sessizce yok sayilir.
+- Gecersiz alan stili `:user-invalid`: bos form sayfa acilir acilmaz kirmizi gorunmesin.
+
+**Mimarideki yeri:** `src/pages/iletisim.astro` -> `IletisimSayfasi.astro` -> `sayfaGetir('iletisim')`, `siteAyariGetir`, `sayfaGetir('kvkk_aydinlatma')`. Canlida formun hedefi ayri bir sunucu ucu olacak (kapsam disi): `iletisim_mesaji`'na yazar, IP'yi HMAC'ler, saklama suresini sema doldurur.
+
+**Testler (P7):**
+| Dosya | Korudugu kural |
+|---|---|
+| `test/cikti/sabit-sayfalar.test.ts` (12) | Dort yasal sayfa "Taslak" isaretli; her footer dort yasal sayfaya bagli; EN footer'da `lang="tr"`; ana sayfa bloklari ve tek iletisim baglantisi; EN ana sayfada karar yok; form alanlarinin `required`/`type`/`maxlength`'i; ozel veri uyarisi ve aydinlatma baglantisi; hicbir sayfada "gonderildi/basariyla"; harita gomulmez; WhatsApp, dialog, video, logo gorseli yok; `position: fixed/sticky` yok |
+| `test/e2e/iletisim.e2e.ts` (3) | Bos gonderimde zorunlu alanlar gecersiz ve dogrulama mesaji var, odak ilk hatali alanda; e-posta `typeMismatch`, telefon `patternMismatch`; gecerli formda "gonderilmedi" durumu |
+| `test/e2e/menu.e2e.ts` (17) | Tab sirasi: icerige atla -> site adi -> 7 menu ogesi -> dil secici; Enter ile gezinme ve `aria-current`; odak cercevesi gorunur; 15 sayfa turunde 360 px'te yatay tasma yok |
+| `yasakli-kelime.test.ts` | TR listesine "odul" eklendi |
+
+**Bulunan hata:** Mobil testi `/kararlar`'da 360 px ekranda 484 px tasma buldu. Sebep: uzun mevzuat adli `<select>` ve `fieldset`'in varsayilan `min-width: min-content` degeri. Filtre secimleri daralabilir yapildi (`flex: 1 1 11rem; min-width: 0`, `select { width: 100% }`, `fieldset { min-width: 0 }`).
+
+---
+
 ## Kararlar tablosu
 
 | # | Karar | Gerekce | Kim karar verdi | Plandan sapma mi |
@@ -351,6 +385,11 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | K31 | EN yayin sayfasinda ilgili kararlar gosterilmez | Kararlar yalnizca TR (S3) | ben karar verdim | hayir |
 | K32 | Karar mahkeme filtresi ust mahkemeye gore | Daire secenegi az kayitta tek sonuc verir; daire listede yazili | ben karar verdim | hayir |
 | K33 | Karar listesinde "anonimlestirilmistir, taraf bilgisi icermez" notu | Okuyan kararlarin buroyla iliskisini varsaymasin; metni buro gozden gecirmeli | ben karar verdim | hayir |
+| K34 | Ana sayfa h1'i buro unvani; title "Ana Sayfa \| unvan" | Ana sayfanin konusu buronun kendisi; title tekrarli olmasin | ben karar verdim | hayir |
+| K35 | Iletisim formunda onay kutusu yok; yalnizca aydinlatma baglantisi ve gizli `aydinlatma_surumu` | KVKK 2026/347: aydinlatma rizadan ayri; sema `kvkk_onay` yerine surum tutuyor | ben karar verdim | hayir |
+| K36 | Gonderim ucu olmadigi icin form ustunde "henuz devrede degil" notu + betikle "gonderilmedi" | Sahte basari mesaji yasak; JS kapaliyken bile kullanici once uyarilsin | ben karar verdim | hayir |
+| K37 | Form iletisim_mesaji sutun adlarini (`ad`, `eposta`, `telefon`, `konu_turu`, `mesaj`, `aydinlatma_surumu`) kullanir | Uc yazilinca esleme gerekmesin | ben karar verdim | hayir |
+| K38 | Menu, klavye ve mobil testleri P7'de (P8 degil) | Menu bu pakette tamamlandi; ayni pakette test edilmesi dogal | ben karar verdim | hayir |
 
 ---
 
@@ -380,6 +419,7 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | P4 | 0 hata | 236/236 | 32/32 | 20/20 |
 | P5 | 0 hata | 239/239 | 44/44 | 30/30 |
 | P6 | 0 hata | 239/239 | 52/52 | 35/35 |
+| P7 | 0 hata | 239/239 | 64/64 | 59/59 |
 
 **Bozarak dogrulanan testler:**
 | Test | Nasil bozuldu | Sonuc |
@@ -399,7 +439,9 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 
 | `kararlar.test.ts` + `yasakli-kelime.test.ts` + `veri.test.ts` (ofis davasi) | `kararOzeti`'nde `ofis_davasi` olan kararin mahkeme adina "(ofis davasi)" eklendi | dort test kirmizi (iki karar testi, yasakli kelime, veri JSON testi), geri alindi |
 
-- Son dogrulama: P6 sonu, 12 Ekim 2026 02:25 (Europe/Istanbul): check 0 hata, birim 239, cikti 52, e2e 35; hepsi yesil.
+| `sabit-sayfalar.test.ts` + `iletisim.e2e.ts` | Form sonuc metni "Mesajiniz basariyla gonderildi." yapildi, `ad` alanindan `required` kaldirildi | iki dist ve iki e2e testi kirmizi, geri alindi |
+
+- Son dogrulama: P7 sonu, 12 Ekim 2026 02:23 (Europe/Istanbul): check 0 hata, birim 239, cikti 64, e2e 59; hepsi yesil.
 
 ---
 
@@ -412,6 +454,7 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 - **P4 Calisma alanlari ve arabuluculuk:** Iki seviyeli alan listesi ve detay sayfalari (breadcrumb, alt alanlar, ilgili kisi ve yayinlar), sayfa tablosundan genel sabit sayfa sablonu (arabuluculuk, hakkimizda, yasal sayfalar) eklendi; menuye iki bolum girdi.
 - **P5 Yayinlar:** TR/EN filtreli yayin listesi (tur, alan, yazar, yil, etiket; JS yoksa tam liste) ve ture gore degisen detay sayfasi (makale icerigi, kitap kunyesi, video dis baglantisi, haber kaynagi, PDF ekleri, yazarlar) eklendi; profil ve alan sayfalarindaki yayinlar baglantiya dondu.
 - **P6 Kararlar:** Yalnizca TR karar listesi (mahkeme, yil, alan, mevzuat filtresi) ve detay sayfasi (kunye, mevzuat maddeleri, anonim metin, ilgili yayinlar) eklendi; yayin-karar baglantisi iki yonlu oldu. Ofis davasi ve sonuc dili icin dist testleri yazildi.
+- **P7 Ana sayfa, iletisim, yasal sayfalar:** TR/EN ana sayfa (giris, alanlar, arabuluculuk, son yayinlar/kararlar, ekip), iletisim sayfasi ve HTML dogrulamali form (gonderim ucu yok, "gonderilmedi" der), footer'da yasal sayfa baglantilari ve tam menu eklendi. Form, reklam kurallari, klavye ve mobil tasma testleri yazildi; mobil testi filtre formundaki tasmayi buldu, duzeltildi.
 
 ---
 
@@ -456,3 +499,7 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | 35 | `git diff --cached --name-status` | Hazirlik alaninda yalniz P6 dosyalari oldugunu kontrol etti. |
 | 36 | `git commit -m "Karar sayfalarini ekle" -m "..."` | P6 commit'i. |
 | 37 | `git push origin worktree-site-gece` | P6'yi uzaga gonderdi. |
+| 38 | `git add docs/site-gece-calismasi.md site/src site/test` | P7 dosyalarini acik yollarla hazirlik alanina koydu. |
+| 39 | `git diff --cached --name-status` | Hazirlik alaninda yalniz P7 dosyalari oldugunu kontrol etti. |
+| 40 | `git commit -m "Ana sayfa, iletisim ve yasal sayfa baglantilarini ekle" -m "..."` | P7 commit'i. |
+| 41 | `git push origin worktree-site-gece` | P7'yi uzaga gonderdi. |

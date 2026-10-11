@@ -55,7 +55,9 @@ const m = metinler[dil];
     margin-bottom: calc(var(--bosluk) * 1.5);
   }
 
+  /* fieldset varsayilan olarak en uzun icerigi kadar genistir (min-width: min-content). */
   fieldset {
+    min-width: 0;
     border: 1px solid var(--renk-cizgi);
     border-radius: var(--kose);
     padding: var(--bosluk);
@@ -74,11 +76,18 @@ const m = metinler[dil];
     gap: var(--bosluk);
   }
 
+  /* Uzun secenek adlari (mevzuat) dar ekranda select'i tasirmasin: oge daralabilir, select doldurur. */
   .secim {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-    min-width: min(100%, 11rem);
+    flex: 1 1 11rem;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  select {
+    width: 100%;
   }
 
   select,
