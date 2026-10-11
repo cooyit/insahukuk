@@ -1,0 +1,21 @@
+---
+// Yalnizca baslik ve zengin metinden olusan sabit sayfa (sayfa tablosu): arabuluculuk,
+// hakkimizda, yasal sayfalar. Ana sayfa ve iletisim kendi sablonlarini kullanir.
+import Temel from '../layouts/Temel.astro';
+import KirintiYolu from './KirintiYolu.astro';
+import type { Dil } from '../lib/metinler';
+import type { SayfaIcerik } from '../lib/veri';
+
+interface Props {
+  dil: Dil;
+  sayfa: SayfaIcerik;
+}
+
+const { dil, sayfa } = Astro.props;
+---
+
+<Temel baslik={sayfa.seoBaslik ?? sayfa.baslik} aciklama={sayfa.aciklama} karsilik={sayfa.karsilik}>
+  <KirintiYolu dil={dil} ogeler={[{ ad: sayfa.baslik }]} />
+  <h1>{sayfa.baslik}</h1>
+  <div class="icerik" set:html={sayfa.icerik} />
+</Temel>

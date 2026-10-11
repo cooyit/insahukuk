@@ -38,6 +38,11 @@ export const metinler = {
     arabulucu: 'Arabulucu',
     yayinlar: 'Yayınlar',
     halen: 'halen',
+    calismaAlanlariAciklama: 'Büromuzun kamu hukuku ve özel hukuk alanındaki çalışma alanları.',
+    altAlanlar: 'Alt alanlar',
+    ilgiliKisiler: 'Bu alanda çalışan ekip üyeleri',
+    ilgiliYayinlar: 'İlgili yayınlar',
+    arabuluculuk: 'Arabuluculuk',
   },
   en: {
     dilAdi: 'English',
@@ -64,6 +69,11 @@ export const metinler = {
     arabulucu: 'Mediator',
     yayinlar: 'Publications',
     halen: 'present',
+    calismaAlanlariAciklama: 'Our practice areas in public and private law.',
+    altAlanlar: 'Sub-areas',
+    ilgiliKisiler: 'Team members working in this area',
+    ilgiliYayinlar: 'Related publications',
+    arabuluculuk: 'Mediation',
   },
 } satisfies Record<Dil, Record<string, string>>;
 

@@ -1,0 +1,20 @@
+---
+import type { GetStaticPaths } from 'astro';
+import SabitSayfa from '../../components/SabitSayfa.astro';
+import { sayfalariGetir, type SayfaIcerik } from '../../lib/veri';
+
+// Adres veriden gelir (sayfa_ceviri.slug). Yalnizca EN cevirisi olan sayfalar uretilir.
+export const getStaticPaths = (async () => {
+  // Kendi sablonu olan sayfalar (ana sayfa, iletisim). Sabit fonksiyonun icinde: Astro
+  // getStaticPaths'i dosyanin geri kalanindan ayri calistirir, disaridaki sabiti goremez.
+  const KENDI_SABLONU_OLANLAR = ['ana_sayfa', 'iletisim'];
+  const sayfalar = await sayfalariGetir('en');
+  return sayfalar
+    .filter((s) => !KENDI_SABLONU_OLANLAR.includes(s.anahtar))
+    .map((sayfa) => ({ params: { sayfa: sayfa.url.replace(/^\/en\//, '') }, props: { sayfa } }));
+}) satisfies GetStaticPaths;
+
+const { sayfa } = Astro.props as { sayfa: SayfaIcerik };
+---
+
+<SabitSayfa dil="en" sayfa={sayfa} />

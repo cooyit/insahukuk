@@ -100,7 +100,7 @@ function yilAraligi(bas: number | null, bit: number | null): string {
             <h2 id="alanlar">{m.calismaAlanlari}</h2>
             <ul>
               {kisi.alanlar.map((a) => (
-                <li>{a.ad}</li>
+                <li>{a.url ? <a href={a.url}>{a.ad}</a> : a.ad}</li>
               ))}
             </ul>
           </section>

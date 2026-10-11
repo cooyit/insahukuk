@@ -149,6 +149,21 @@ a:hover {
   text-decoration: none;
 }
 
+/* Kart izgarasi (ekip kartlari, alan kartlari). Dar ekranda tek sutun. */
+.kart-izgara {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: calc(var(--bosluk) * 1.5);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Liste ve detay sayfalarindaki ikincil bilgi (tarih, tur, unvan). */
+.ikincil {
+  color: var(--renk-metin-ikincil);
+}
+
 /* Alt bilgi */
 .alt {
   background: var(--renk-zemin-ikincil);

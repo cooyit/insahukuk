@@ -3,11 +3,14 @@
 import { metinler, type Dil } from './metinler';
 
 // Kararlar yalnizca Turkce oldugu icin 'en' altinda kararlar yolu bilerek yok.
+// arabuluculuk: sayfa tablosundaki slug'la ayni olmali (menu icin burada da yazili);
+// farkli olursa menu kirik baglanti verir ve dist'teki baglanti testi kirmiziya doner.
 export const yollar = {
   tr: {
     anaSayfa: '/',
     ekip: '/ekip',
     calismaAlanlari: '/calisma-alanlari',
+    arabuluculuk: '/arabuluculuk',
     yayinlar: '/yayinlar',
     kararlar: '/kararlar',
   },
@@ -15,6 +18,7 @@ export const yollar = {
     anaSayfa: '/en',
     ekip: '/en/team',
     calismaAlanlari: '/en/practice-areas',
+    arabuluculuk: '/en/mediation',
     yayinlar: '/en/publications',
   },
 } satisfies Record<Dil, Record<string, string>>;
@@ -41,5 +45,9 @@ export interface MenuOgesi {
 // Kararlar, Iletisim. Bir oge, o sayfa gercekten uretildiginde eklenir; yoksa kirik baglanti olur.
 export function menuOgeleri(dil: Dil): MenuOgesi[] {
   const m = metinler[dil];
-  return [{ ad: m.ekip, yol: yollar[dil].ekip }];
+  return [
+    { ad: m.calismaAlanlari, yol: yollar[dil].calismaAlanlari },
+    { ad: m.arabuluculuk, yol: yollar[dil].arabuluculuk },
+    { ad: m.ekip, yol: yollar[dil].ekip },
+  ];
 }

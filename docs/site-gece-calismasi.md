@@ -18,8 +18,8 @@
 | P1 Iskelet | bitti |
 | P2 Veri modulu ve mock veri | bitti |
 | P3 Ekip | bitti |
-| P4 Calisma alanlari ve arabuluculuk | yapilmadi (sirada) |
-| P5 Yayinlar | yapilmadi |
+| P4 Calisma alanlari ve arabuluculuk | bitti |
+| P5 Yayinlar | yapilmadi (sirada) |
 | P6 Kararlar | yapilmadi |
 | P7 Ana sayfa, hakkimizda, iletisim, yasal sayfalar | yapilmadi |
 | P8 Kalite gecisi | yapilmadi |
@@ -209,6 +209,40 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 
 ---
 
+## P4 Calisma alanlari ve arabuluculuk
+
+**Baslamadan once**
+1. Kaynak: gorev Bolum 5 P4; `docs/inceleme` 6.3 (`/calisma-alanlari/{slug}` duz slug, agac breadcrumb'da; arabuluculuk bilgilendirici, sonuc vaadi yok), 6.1 (her alanin kendi URL'si), 7 (arabuluculukta basari vaadi yasagi).
+2. En basit yol: liste + detay gorunumu; arabuluculuk icin `sayfa` tablosundan genel bir "sabit sayfa" sablonu.
+3. Yapmazsam: menudeki iki ana bolum eksik kalir.
+4. Uyum: arabuluculuk metni surec anlatir, sonucu taraflara birakir ("sonuc vaadi icermez"); yasakli kelime listesine "basari orani", "kesin sonuc" (Turkce yazimiyla), "success rate" eklendi.
+
+**Ne:**
+- `/calisma-alanlari`, `/calisma-alanlari/{slug}`, `/en/practice-areas`, `/en/practice-areas/{slug}`; `/arabuluculuk`, `/en/mediation`. Menuye "Calisma Alanlari" ve "Arabuluculuk" eklendi (sitede Turkce harflerle).
+- `AlanlarSayfasi.astro` (iki seviyeli liste), `AlanSayfasi.astro` (detay: ozet, icerik, alt alanlar, ilgili kisiler, ilgili yayinlar, breadcrumb), `SabitSayfa.astro` (baslik + zengin metin), `KisiKarti.astro` (ekip kartinin ortak hali).
+- Genel rota `src/pages/[sayfa].astro` ve `src/pages/en/[sayfa].astro`: adresi `sayfa_ceviri.slug`'dan alir. Bu yuzden **hakkimizda ve dort yasal sayfa da bu pakette uretilmeye basladi** (menude/footer'da baglantilari P7'de). Ana sayfa ve iletisim kendi sablonlarini kullanacagi icin bu rotadan haric.
+- Profildeki alan adlari artik baglanti (P3'teki gecici durum kapandi).
+
+**Neden:** Arabuluculuk, hakkimizda ve yasal sayfalar ayni seydir: baslik + editorun yazdigi metin. Tek sablon, P7'de ikinci kez yazilmasini onler.
+
+**Nasil:**
+- Ust alanin sayfasinda kisiler ve yayinlar, kendisine ve alt alanlarina bagli olanlarin birlesimi (veri modulunde `alanVeAltlari`).
+- `[sayfa].astro`'daki "kendi sablonu olanlar" listesi `getStaticPaths`'in **icinde**: Astro bu fonksiyonu dosyanin geri kalanindan ayri calistirdigi icin disaridaki sabit "not defined" hatasi verdi (derlemede goruldu, duzeltildi).
+- Menu adresi `/arabuluculuk` `yollar.ts`'de de yazili; veri slug'i degisirse kirik baglanti testi yakalar.
+
+**Mimarideki yeri:** `src/pages/[sayfa].astro` -> `sayfalariGetir('tr')` -> mock `sayfa`/`sayfa_ceviri`; cizim `SabitSayfa.astro`. Alanlar: `src/pages/calisma-alanlari/[slug].astro` -> `calismaAlaniDetaylariGetir` -> `AlanSayfasi.astro`.
+
+**Testler (P4):**
+| Dosya | Korudugu kural |
+|---|---|
+| `test/cikti/alanlar.test.ts` (6) | Gizli alanin sayfasi yok ve hicbir sayfada adi/baglantisi yok; EN cevirisi olmayan alan icin EN sayfa ve hreflang yok; breadcrumb ust alana bagli; ust alan altlarini listeler; arabuluculuk TR/EN hreflang |
+| `test/e2e/alanlar.e2e.ts` (2) | Menu -> liste -> alt alan -> ilgili kisi -> breadcrumb; arabuluculuk -> EN karsiligi |
+| `erisilebilirlik.e2e.ts` | axe: alan listesi, ust/alt alan, EN alan, arabuluculuk TR/EN, bir yasal sayfa |
+
+**Test duzeltmesi:** Ilk yazdigim "Aile Hukuku'nda hreflang=en yok" testi yanlis kirmiziydi: dil secici `<a>` etiketinde de `hreflang` niteligi var. Test yalnizca `<link rel="alternate">`'a bakacak sekilde daraltildi (kural degismedi, olcum duzeldi).
+
+---
+
 ## Kararlar tablosu
 
 | # | Karar | Gerekce | Kim karar verdi | Plandan sapma mi |
@@ -237,6 +271,8 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | K22 | P3'te profildeki alan ve yayin adlari baglantisiz | Hedef sayfalar P4/P5'te; ara commit'te kirik baglanti olmasin | ben karar verdim | hayir (gecici) |
 | K23 | Kisi e-postasi ve LinkedIn profilde yok | Gorevdeki detay listesinde yok; V2 onerisi | ben karar verdim | hayir |
 | K24 | `site/.gitignore`'a `.DS_Store` | macOS Finder dosyasi `git add site/src` ile yanlislikla girmesin | ben karar verdim | hayir |
+| K25 | Genel `[sayfa].astro` sablonu P4'te; hakkimizda ve yasal sayfalar da bununla uretiliyor | Ayni sablon P7'de yeniden yazilmasin | ben karar verdim | **evet** (P7 isinin bir kismi one alindi) |
+| K26 | Ust alan sayfasinda alt alanlarin kisileri ve yayinlari da listelenir | Mock'ta kisiler cogunlukla alt alanlara bagli; ust sayfa bos kalmasin | ben karar verdim | hayir |
 
 ---
 
@@ -263,6 +299,7 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | P1 | 0 hata | 2/2 | 12/12 | 5/5 |
 | P2 | 0 hata | 236/236 | 19/19 | 5/5 |
 | P3 | 0 hata | 236/236 | 26/26 | 11/11 |
+| P4 | 0 hata | 236/236 | 32/32 | 20/20 |
 
 **Bozarak dogrulanan testler:**
 | Test | Nasil bozuldu | Sonuc |
@@ -276,7 +313,9 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | `yasakli-kelime.test.ts` | Footer notuna TR "Uzman", EN "award-winning" eklendi | iki test kirmizi, geri alindi |
 | `yasakli-kelime.test.ts` + `ekip.test.ts` ("N yil") | Profilde yilin yanina "(23 yillik tecrube)" ve ayrica "(23 yil)" (sitede Turkce harflerle) yazdirildi | ilk denemede yalnizca yasakli kelime testi yakaladi; regex duzeltildi, ikinci denemede ekip testi de kirmizi; geri alindi |
 
-- Son dogrulama: P3 sonu, 12 Ekim 2026 02:05 (Europe/Istanbul): check 0 hata, birim 236, cikti 26, e2e 11; hepsi yesil.
+| `alanlar.test.ts` (gizli alan) | Mock'ta Vergi Hukuku `gorunur: true` yapildi | kirmizi, geri alindi |
+
+- Son dogrulama: P4 sonu, 12 Ekim 2026 02:10 (Europe/Istanbul): check 0 hata, birim 236, cikti 32, e2e 20; hepsi yesil.
 
 ---
 
@@ -286,6 +325,7 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 - **P1 Iskelet:** `site/` altinda Astro 7.3.8 projesi, ortak yerlesim, global CSS, TR/EN yonlendirme, 404, robots ve site haritasi. Vitest (birim + dist) ve Playwright (dil, icerige atla, axe) testleri kuruldu.
 - **P2 Veri modulu ve mock veri:** Sema adlariyla birebir mock tablolar, yayin kurallarini tasiyan tek veri modulu, HTML temizleyici ve bicim yardimcilari eklendi; footer site ayarina baglandi. Kurallar birim, mock butunluk ve dist testleriyle korunuyor.
 - **P3 Ekip:** TR/EN ekip listesi ve profil sayfalari, bas harfli foto yer tutucusu ve breadcrumb eklendi; menuye Ekip girdi. Pasif kisi, gizli telefon ve "N yil" ifadesi icin dist testleri yazildi.
+- **P4 Calisma alanlari ve arabuluculuk:** Iki seviyeli alan listesi ve detay sayfalari (breadcrumb, alt alanlar, ilgili kisi ve yayinlar), sayfa tablosundan genel sabit sayfa sablonu (arabuluculuk, hakkimizda, yasal sayfalar) eklendi; menuye iki bolum girdi.
 
 ---
 
@@ -317,3 +357,8 @@ sayfa (.astro)  ->  src/lib/veri.ts  ->  tablolariYukle()  ->  src/mock/*.ts    
 | 22 | `git diff --cached --name-status` | Hazirlik alaninda yalniz P3 dosyalari oldugunu kontrol etti. |
 | 23 | `git commit -m "Ekip sayfalarini ekle" -m "..."` | P3 commit'i. |
 | 24 | `git push origin worktree-site-gece` | P3'u uzaga gonderdi. |
+| 25 | `git status --short --ignored` | Yanlislikla worktree kokunde calisan bir `astro build`'in biraktigi `.astro/` ve `node_modules/.vite` onbellegini buldu (ikisi de yok sayilan, commit'e girmeyen dosyalar; silindi). |
+| 26 | `git add docs/site-gece-calismasi.md site/src site/test` | P4 dosyalarini acik yollarla hazirlik alanina koydu. |
+| 27 | `git diff --cached --name-status` | Hazirlik alaninda yalniz P4 dosyalari oldugunu kontrol etti. |
+| 28 | `git commit -m "Calisma alanlari ve arabuluculuk sayfalarini ekle" -m "..."` | P4 commit'i. |
+| 29 | `git push origin worktree-site-gece` | P4'u uzaga gonderdi. |

@@ -7,11 +7,12 @@ import { distVarMi, etiketler, gorunenMetin, htmlSayfalari, nitelik, type Sayfa 
 const YASAKLI_TR = [
   'uzman', 'en iyi', 'lider', 'öncü', 'önde gelen', 'başarılı', 'garanti', 'ücretsiz', 'kazandık',
   'kazanılan dava', 'yıllık tecrübe', 'yıllık deneyim', 'referanslar', 'müvekkil yorum', 'ofis davası',
+  'başarı oranı', 'kesin sonuç',
 ];
 const YASAKLI_EN = [
   'expert', 'best', 'leading', 'leader', 'pioneer', 'top-tier', 'top tier', 'award', 'guarantee',
   'successful', 'free consultation', 'free of charge', 'we won', 'number one', 'years of experience',
-  'testimonial', 'client review',
+  'testimonial', 'client review', 'success rate',
 ];
 
 function bul(metin: string, liste: string[], yerel: string): string[] {

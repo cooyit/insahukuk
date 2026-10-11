@@ -1,0 +1,15 @@
+---
+import type { GetStaticPaths } from 'astro';
+import AlanSayfasi from '../../components/AlanSayfasi.astro';
+import { calismaAlaniDetaylariGetir, type AlanDetay } from '../../lib/veri';
+
+// Yalnizca gorunur alanlar (ust alani da gorunur) icin sayfa uretilir (kural veri modulunde).
+export const getStaticPaths = (async () => {
+  const alanlar = await calismaAlaniDetaylariGetir('tr');
+  return alanlar.map((alan) => ({ params: { slug: alan.slug }, props: { alan } }));
+}) satisfies GetStaticPaths;
+
+const { alan } = Astro.props as { alan: AlanDetay };
+---
+
+<AlanSayfasi dil="tr" alan={alan} />

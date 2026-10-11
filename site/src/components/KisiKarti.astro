@@ -1,0 +1,38 @@
+---
+// Ekip karti: yalnizca foto, ad ve unvan (docs/inceleme 6.3). Ekip listesi, calisma alani
+// sayfasi ve ana sayfa kullanir. Bu dilde profil yoksa ad baglantisiz yazilir.
+import KisiFoto from './KisiFoto.astro';
+import type { KisiOzet } from '../lib/veri';
+
+interface Props {
+  kisi: KisiOzet;
+}
+
+const { kisi } = Astro.props;
+---
+
+<li class="kart">
+  <KisiFoto kisi={kisi} />
+  <div>
+    <p class="ad">{kisi.url ? <a href={kisi.url}>{kisi.tamAd}</a> : kisi.tamAd}</p>
+    {kisi.unvan && <p class="unvan">{kisi.unvan}</p>}
+  </div>
+</li>
+
+<style>
+  .kart {
+    display: flex;
+    align-items: center;
+    gap: var(--bosluk);
+  }
+
+  .ad {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .unvan {
+    margin: 0;
+    color: var(--renk-metin-ikincil);
+  }
+</style>

@@ -1,0 +1,79 @@
+---
+// Calisma alani detayi (TR /calisma-alanlari/{slug}, EN /en/practice-areas/{slug}).
+// Duz slug; agac breadcrumb'da (docs/inceleme 6.3). Ust alanin sayfasinda alt alanlar ve
+// alt alanlardaki kisi/yayinlar da listelenir (veri modulu birlestirir).
+import Temel from '../layouts/Temel.astro';
+import KirintiYolu from './KirintiYolu.astro';
+import KisaYayinListesi from './KisaYayinListesi.astro';
+import KisiKarti from './KisiKarti.astro';
+import { metinler, type Dil } from '../lib/metinler';
+import type { AlanDetay } from '../lib/veri';
+import { yollar } from '../lib/yollar';
+
+interface Props {
+  dil: Dil;
+  alan: AlanDetay;
+}
+
+const { dil, alan } = Astro.props;
+const m = metinler[dil];
+const kirinti = [
+  { ad: m.calismaAlanlari, url: yollar[dil].calismaAlanlari },
+  ...(alan.ust ? [alan.ust] : []),
+  { ad: alan.ad },
+];
+---
+
+<Temel baslik={alan.seoBaslik ?? alan.ad} aciklama={alan.aciklama} karsilik={alan.karsilik}>
+  <KirintiYolu dil={dil} ogeler={kirinti} />
+  <h1>{alan.ad}</h1>
+  {alan.ozet && <p class="giris">{alan.ozet}</p>}
+  {alan.icerik && <div class="icerik" set:html={alan.icerik} />}
+
+  {
+    alan.altAlanlar.length > 0 && (
+      <section aria-labelledby="alt-alanlar">
+        <h2 id="alt-alanlar">{m.altAlanlar}</h2>
+        <ul>
+          {alan.altAlanlar.map((alt) => (
+            <li>
+              <a href={alt.url}>{alt.ad}</a>
+              {alt.ozet && <span class="ikincil"> — {alt.ozet}</span>}
+            </li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+
+  {
+    alan.kisiler.length > 0 && (
+      <section aria-labelledby="ilgili-kisiler">
+        <h2 id="ilgili-kisiler">{m.ilgiliKisiler}</h2>
+        <ul class="kart-izgara">
+          {alan.kisiler.map((kisi) => <KisiKarti kisi={kisi} />)}
+        </ul>
+      </section>
+    )
+  }
+
+  {
+    alan.yayinlar.length > 0 && (
+      <section aria-labelledby="ilgili-yayinlar">
+        <h2 id="ilgili-yayinlar">{m.ilgiliYayinlar}</h2>
+        <KisaYayinListesi dil={dil} yayinlar={alan.yayinlar} />
+      </section>
+    )
+  }
+</Temel>
+
+<style>
+  .giris {
+    font-size: 1.125rem;
+    color: var(--renk-metin-ikincil);
+  }
+
+  section {
+    margin-top: calc(var(--bosluk) * 2);
+  }
+</style>

@@ -1,0 +1,62 @@
+---
+// Calisma alanlari listesi (TR /calisma-alanlari, EN /en/practice-areas): iki seviyeli agac.
+// Her alanin kendi sayfasi var (docs/inceleme 6.1, R&S ornegi); agac yapisi burada gorunur.
+import Temel from '../layouts/Temel.astro';
+import KirintiYolu from './KirintiYolu.astro';
+import { digerDil, metinler, type Dil } from '../lib/metinler';
+import { calismaAlanlariGetir } from '../lib/veri';
+import { yollar } from '../lib/yollar';
+
+interface Props {
+  dil: Dil;
+}
+
+const { dil } = Astro.props;
+const m = metinler[dil];
+const agac = await calismaAlanlariGetir(dil);
+---
+
+<Temel baslik={m.calismaAlanlari} aciklama={m.calismaAlanlariAciklama} karsilik={yollar[digerDil(dil)].calismaAlanlari}>
+  <KirintiYolu dil={dil} ogeler={[{ ad: m.calismaAlanlari }]} />
+  <h1>{m.calismaAlanlari}</h1>
+  {
+    agac.map((ust) => (
+      <section class="grup" aria-labelledby={`alan-${ust.id}`}>
+        <h2 id={`alan-${ust.id}`}>
+          <a href={ust.url}>{ust.ad}</a>
+        </h2>
+        {ust.ozet && <p class="ikincil">{ust.ozet}</p>}
+        <ul class="alt-alanlar">
+          {ust.altAlanlar.map((alt) => (
+            <li>
+              <a href={alt.url}>{alt.ad}</a>
+              {alt.ozet && <p>{alt.ozet}</p>}
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))
+  }
+</Temel>
+
+<style>
+  .grup + .grup {
+    margin-top: calc(var(--bosluk) * 2);
+  }
+
+  .alt-alanlar {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+    gap: var(--bosluk) calc(var(--bosluk) * 1.5);
+    list-style: none;
+    padding: 0;
+  }
+
+  .alt-alanlar a {
+    font-weight: 600;
+  }
+
+  .alt-alanlar p {
+    margin: 0.25rem 0 0;
+  }
+</style>
