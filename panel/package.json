@@ -1,0 +1,22 @@
+{
+  "name": "insahukuk-panel",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "kur": "node betikler/kur.mjs",
+    "panel": "directus start",
+    "db:baslat": "node betikler/veritabani.mjs baslat",
+    "db:durdur": "node betikler/veritabani.mjs durdur",
+    "db:durum": "node betikler/veritabani.mjs durum",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "directus": "12.5.0"
+  },
+  "devDependencies": {
+    "vitest": "5.0.3"
+  }
+}

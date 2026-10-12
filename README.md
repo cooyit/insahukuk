@@ -12,6 +12,7 @@ Hukuk ve arabuluculuk bürosu web sitesi projesi (çalışma adı; büro unvanı
 | [`db/test/`](db/test/) | Şema testleri ve çalıştırıcı (`db/test/calistir.sh`) |
 | [`db/referans/`](db/referans/) | Karşılaştırma için ilk GSI şeması ve sorunlarını gösteren testler |
 | [`site/`](site/) | Astro sitesi (bu asamada mock veriyle): `cd site && npm ci && npm run dev`; ayrinti [`docs/site-gece-calismasi.md`](docs/site-gece-calismasi.md) |
+| [`panel/`](panel/) | Yonetim paneli (Directus 12.5) yerel kurulumu: `cd panel && npm ci && npm run kur && npm run panel`; ayrinti [`docs/panel-gece-calismasi.md`](docs/panel-gece-calismasi.md) |
 | [`tools/olcum/`](tools/olcum/) | Bellek/CPU ölçüm betikleri ve ham sonuçlar |
 
 ## Kısaca karar
