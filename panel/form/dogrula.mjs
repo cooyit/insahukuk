@@ -5,15 +5,15 @@
 
 export const KONU_TURLERI = ['genel', 'randevu', 'arabuluculuk', 'diger'];
 
-// ic.eposta_gecerli
-const EPOSTA = /^[^@]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/;
-const YAZDIRILABILIR_ASCII = /^[!-~]+$/;
+// ic.eposta_gecerli; yerel kisim panelin alan dogrulamasi kadar dar (yapilandirma/alanlar.mjs EPOSTA):
+// Directus form servisinin kaydini da o kuralla denetler, daha genis kabul 502 dondururdu.
+const EPOSTA = /^[a-z0-9!#$%&'*+/=?^_`{|}~.-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/;
 // ic.telefon_gecerli (E.164)
 const E164 = /^\+[1-9][0-9]{7,14}$/;
 // Sitedeki telefon alaninin pattern'i: rakam, bosluk, +, ( ) ve -
 const TELEFON_GIRDISI = /^[0-9 +()-]{7,20}$/;
 // Sitenin gizli alanla gonderdigi aydinlatma metni surumu (ornek: aydinlatma-2026-10)
-const SURUM = /^[a-z0-9][a-z0-9.-]{0,63}$/;
+const SURUM =/^[a-z0-9][a-z0-9.-]{0,63}$/;
 // Ad tek satir; mesajda satir sonu ve sekme serbest. NUL PostgreSQL metninde saklanamaz.
 const AD_KONTROL = /[\u0000-\u001f\u007f]/;
 const MESAJ_KONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
@@ -21,7 +21,7 @@ const MESAJ_KONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 const uzunluk = (s) => [...s].length;
 
 // Ziyaretcinin yazdigi numarayi E.164'e cevirir; cevrilemiyorsa null.
-// "0212 000 00 00", "212 000 00 00" ve "0090 212..." Turkiye numarasi sayilir.
+// "0212 000 00 00", "212 000 00 00" ve "90 212 000 00 00" Turkiye numarasi sayilir; "0049..." ve "+49..." yabanci.
 export function telefonNormallestir(girdi) {
   const t = girdi.trim();
   if (!TELEFON_GIRDISI.test(t) || t.slice(1).includes('+')) return null;
@@ -31,6 +31,7 @@ export function telefonNormallestir(girdi) {
   else if (rakamlar.startsWith('00')) e164 = `+${rakamlar.slice(2)}`;
   else if (rakamlar.startsWith('0')) e164 = `+90${rakamlar.slice(1)}`;
   else if (rakamlar.length === 10) e164 = `+90${rakamlar}`;
+  else if (rakamlar.length === 12 && rakamlar.startsWith('90')) e164 = `+${rakamlar}`;
   else return null;
   // Turkiye numarasi ulke kodundan sonra tam 10 hane.
   if (e164.startsWith('+90') && e164.length !== 13) return null;
@@ -46,7 +47,7 @@ export function formuDogrula(f) {
 
   // Veritabani kucuk harf ister; adresin alan adi kismi zaten buyuk-kucuk harf ayirmaz.
   const eposta = (f.eposta ?? '').trim().toLowerCase();
-  if (eposta.length > 254 || !YAZDIRILABILIR_ASCII.test(eposta) || !EPOSTA.test(eposta)) hatalar.push('eposta');
+  if (eposta.length > 254 || !EPOSTA.test(eposta)) hatalar.push('eposta');
 
   let telefon = null;
   if ((f.telefon ?? '').trim()) {

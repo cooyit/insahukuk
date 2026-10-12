@@ -42,11 +42,17 @@ const METIN = {
 
 // Kayan pencere: anahtar basina "pencere" ms icinde en fazla "adet" deneme. Bellekte tutulur;
 // servis yeniden baslayinca sifirlanir (tek sunucu icin yeterli).
+// Suresi dolan kayitlar pencere basina bir kez temizlenir (her istekte butun tabloyu gezmek, cok
+// sayida farkli adresle gelen bir botta istek basina maliyeti buyuturdu).
 export function hizSiniri({ adet, pencere }, simdi = Date.now) {
   const denemeler = new Map();
+  let sonTemizlik = simdi();
   return (anahtar) => {
     const t = simdi();
-    for (const [k, z] of denemeler) if (z.at(-1) <= t - pencere) denemeler.delete(k);
+    if (t - sonTemizlik >= pencere) {
+      for (const [k, z] of denemeler) if (z.at(-1) <= t - pencere) denemeler.delete(k);
+      sonTemizlik = t;
+    }
     const z = (denemeler.get(anahtar) ?? []).filter((x) => x > t - pencere);
     const izin = z.length < adet;
     if (izin) z.push(t);
@@ -61,6 +67,19 @@ function istemciIp(istek, vekilArkasinda) {
   const xff = istek.headers['x-forwarded-for'];
   if (vekilArkasinda && xff) return xff.split(',').at(-1).trim();
   return istek.socket.remoteAddress ?? '';
+}
+
+// Hiz siniri ve ip_hmac icin adres grubu: IPv4 aynen ("::ffff:1.2.3.4" de IPv4 sayilir); IPv6'da
+// /64 oneki. Bir abone genellikle butun /64'u alir; adres basina sinir, adres degistirerek asilirdi.
+export function ipGrubu(ip) {
+  const v4 = ip.match(/^(?:::ffff:)?(\d+\.\d+\.\d+\.\d+)$/i);
+  if (v4) return v4[1];
+  if (!ip.includes(':')) return ip;
+  const [bas, son] = ip.split('%')[0].split('::');
+  const ilk = bas ? bas.split(':') : [];
+  const kalan = son ? son.split(':') : [];
+  const gruplar = son === undefined ? ilk : [...ilk, ...Array(Math.max(0, 8 - ilk.length - kalan.length)).fill('0'), ...kalan];
+  return `${gruplar.slice(0, 4).map((g) => parseInt(g, 16).toString(16)).join(':')}::/64`;
 }
 
 function kacis(s) {
@@ -137,7 +156,7 @@ export function formSunucusu(ayar) {
       return cevap(415, 'tr', 'reddedildi');
     }
 
-    const ipHmac = createHmac('sha256', ayar.ipAnahtari).update(istemciIp(istek, ayar.vekilArkasinda)).digest('hex');
+    const ipHmac = createHmac('sha256', ayar.ipAnahtari).update(ipGrubu(istemciIp(istek, ayar.vekilArkasinda))).digest('hex');
     if (!izinVer(ipHmac)) return cevap(429, 'tr', 'cokSik');
 
     const metin = await govdeOku(istek);
@@ -150,8 +169,12 @@ export function formSunucusu(ayar) {
 
     if (alanlar[BAL_KUPU]) return cevap(400, dil, 'reddedildi');
     const { hatalar, satir } = formuDogrula(alanlar);
-    // Aydinlatma surumunu ziyaretci duzeltemez (sitenin gizli alani); genel ret.
-    if (hatalar.includes('aydinlatma_surumu')) return cevap(400, dil, 'reddedildi');
+    // Aydinlatma surumunu ziyaretci duzeltemez (sitenin gizli alani); genel ret. Log: site ayarindaki
+    // surum bos ya da bozuksa form herkese kapanir, bunun fark edilmesi icin (kisisel veri yok).
+    if (hatalar.includes('aydinlatma_surumu')) {
+      console.error('form: aydinlatma_surumu eksik ya da gecersiz (Site ayarlari)');
+      return cevap(400, dil, 'reddedildi');
+    }
     if (hatalar.length) return cevap(400, dil, 'alanHatasi', ` ${hatalar.map((h) => METIN[dil].alanlar[h]).join(', ')}.`);
 
     let durum;

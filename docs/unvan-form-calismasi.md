@@ -15,7 +15,7 @@
 | R2 Form bildirim e-postasi alani (veri modeli) | bitti |
 | R3 Form servisi | bitti |
 | R4 Bildirim akisi (e-posta) | bitti |
-| R5 Inceleme ve rapor | yapilmadi (sirada) |
+| R5 Inceleme ve rapor | bitti |
 
 ## Uygulanan kararlar (acik sorular)
 
@@ -145,12 +145,38 @@ Ayar sistem yetkisiyle okunur (mesaji olusturan form servisi site ayarini okuyam
 
 ---
 
+## R5 Bagimsiz inceleme ve duzeltmeler
+
+Bu calismanin baglamini bilmeyen ayri bir inceleyici `2be11e4..HEAD`'i (R1-R4) yalnizca okuyarak inceledi. Yuksek onemde bulgu yok. Her bulgu kodla karsilastirildi.
+
+| # | Bulgu | Onem | Ne yapildi |
+|---|---|---|---|
+| 1 | IPv6'da adres basina hiz siniri, adres degistirerek asilabilir; her istekte butun tablo geziliyordu | Orta | **Duzeltildi:** IPv6 /64 onekiyle gruplanir (IPv4 aynen); temizlik pencere basina bir kez. `ip_hmac` de bu gruptan uretilir (IPv6'da daha az bilgi saklanir). Testli. |
+| 2 | Panelde aydinlatma surumu bozuk ya da bos yazilirsa form herkese kapanir ve kimse fark etmez | Orta | **Duzeltildi:** panelde ayni bicim kurali (Turkce mesajli); alan notuna "bos birakilirsa form mesaj kabul etmez"; servis bu durumda kisisel veri icermeyen bir log yazar. Testli. |
+| 3 | `.env`'e eksik anahtar eklenirken yerel varsayilanlar (localhost, sahte SMTP) canli sunucuya da yazilabilir | Orta | **Duzeltildi:** eklenen anahtarlar adlariyla "canli sunucudaysaniz kontrol edin" uyarisiyla yazdirilir. |
+| 4 | Servisin kabul ettigi bazi e-posta karakterleri (`"`, `(`, `,`) panelin alan kuralinda reddediliyor -> ziyaretciye "kaydedilemedi" | Dusuk | **Duzeltildi:** servis panelin kuraliyla ayni karakterleri kabul eder. Testli. (Tarayicinin e-posta alani bunlari zaten engelliyordu.) |
+| 6 | "90 532 123 45 67" sitede kabul, serviste ret | Dusuk | **Duzeltildi:** 90 ile baslayan 12 hane Turkiye numarasi sayilir. Testli. |
+| 5 | Hiz siniri / kaynak reddi mesajlari Ingilizce formda da Turkce | Dusuk | Kaldi: nadir durum; mesaj yine durustur. |
+| 7 | Directus 10 sn'den gec yazarsa ziyaretci "kaydedilemedi" gorur, tekrar gonderirse mesaj iki kez kaydolur | Dusuk | Kaldi: kabul edilebilir (mesaj kaybolmaz, en kotu ihtimalle cift). |
+| 8 | Site ileride `Referrer-Policy: no-referrer` gonderirse tarayicilar `Origin: null` yollar ve form 403 verir | Dusuk | Kaldi: bugun boyle bir baslik yok. **Canli sunucu kurulurken** bu baslik siteye konmamali (ya da servis `null`'a izin vermeli). |
+| 9 | Form servisinin anahtari mesaj olustururken her sutunu yazabilir (ornek: saklama suresi) | Dusuk | Kaldi: alan kisitlamasi lisanssiz katmanda kurulumu kilitler; servis yalnizca form alanlarini gonderir, anahtar yalnizca sunucudaki `.env`'de. |
+| 10 | Form bildirim adresi ve buro e-postasi ikisi de bossa bildirim gitmez | Dusuk | Kaldi: mesaj panelde durur; R4 tablosunda yaziyor. |
+
+Ayrica (inceleyicinin sorunsuz buldugu alanlar): DB kurallariyla esitlik, 413 yolu, X-Forwarded-For, Origin, HTML yanit sayfasi, KVKK (log, e-posta, degisiklik kaydi), akisin iki dali ve yeniden uygulanmasi, koltuk, sahte SMTP protokolu, site betigi, testlerin gercekten davranisi sinamasi.
+
+**Yolda kendi hatam (duzeltildi, commit'e girmedi):** `alanlar.mjs`'e ekleme yaparken metin degistirmede `$'` dizisi ozel anlam tasidigi icin dosyanin bir bolumu kopyalandi; fark (diff) kontrolunde goruldu, dosya son commit'teki haline dondurulup ekleme elle yeniden yapildi.
+
+**Dogrulama:** panel testleri 70 (yeni 2: IPv6 gruplama, paneldeki surum kurali; ayrica e-posta karakterleri, "90..." telefonu ve surum logu mevcut testlere eklendi). Site dosyalari R5'te degismedi (son calistirma: check 0 hata, birim 245, cikti 71, e2e 158). Gelistirme paneline yapilandirma uygulandi.
+
+---
+
 ## Commit aciklamalari
 
 - **R1 Unvan, alan adi, logo:** Resmi unvan (yer tutucu) ve uydurma alan adi `insahukuk.test` tek yerlerinde degisti; sitede ve panelde yer tutucu INSA logosu. Muvekkil/firma logosu testi buronun kendi logosunu dislayacak sekilde duzeltildi; panel testlerinin kapali kumede calismama hatasi giderildi.
 - **R2 Form bildirim e-postasi:** `site_ayar.form_bildirim_eposta` sutunu (CHECK'li, bos olabilir) eklendi; sema testi T17, beklenen cikti, TABLOLAR.md, veri modeli belgesi, site mock'u ve panel alani buna gore guncellendi. Adresin sitede gorunmedigi testli.
 - **R3 Form servisi:** `panel/form/` altinda ek paketsiz servis (dogrulama, telefon E.164, bal kupu, IP basina hiz siniri, Origin denetimi, IP'nin HMAC'i); Directus'a yalnizca mesaj olusturabilen, panele giremeyen ve koltuk saymayan "Form servisi" kullanicisiyla yazar. Sitenin formu artik etkin ve sunucunun gercek yanitini gosterir. Iki eski hata duzeltildi: `npm run kur`'un dongusel ice aktarmada takilmasi ve istege bagli bicimli alanlarin panelde bosaltilamamasi.
 - **R4 Bildirim akisi:** Dorduncu akis yeni mesajda Site ayarlarindaki form bildirim adresine (bossa buro e-postasina) yalnizca panel baglantisi iceren bir e-posta yollar; e-postada kisisel veri yok. Yerel gelistirme ve testler icin ek paketsiz sahte SMTP alicisi; akis uygulayicisi cok islemli akislari destekliyor.
+- **R5 Inceleme duzeltmeleri:** Bagimsiz incelemenin bes bulgusu duzeltildi: IPv6 hiz siniri /64 onekiyle, sinir tablosu pencere basina bir kez temizlenir; panelde aydinlatma surumu bicim kurali ve servis logu; `.env`'e eklenen anahtarlar icin uyari; e-posta karakterleri panelle ayni; "90..." telefonu. Kalan bulgular belgede.
 
 ---
 
@@ -175,3 +201,8 @@ Ayar sistem yetkisiyle okunur (mesaji olusturan form servisi site ayarini okuyam
 | 15 | `git diff --cached --name-status` | Yalniz R4 dosyalari oldugunu kontrol etti. |
 | 16 | `git commit -m "Yeni mesaj bildirim akisini ekle" -m "..."` | R4 commit'i. |
 | 17 | `git push origin unvan-form` | R4'u uzaga gonderdi. |
+| 18 | `git add panel/... docs/unvan-form-calismasi.md` (acik yollar) | R5 dosyalarini hazirlik alanina koydu. |
+| 19 | `git diff --cached --name-status` | Yalniz R5 dosyalari oldugunu kontrol etti. |
+| 20 | `git commit -m "Inceleme bulgularini duzelt" -m "..."` | R5 commit'i. |
+| 21 | `git push origin unvan-form` | R5'i uzaga gonderdi. |
+| 22 | `git add docs/unvan-form-calismasi.md`, `git diff --cached --name-status`, `git commit -m "Calisma belgesine commit listesini ekle"`, `git push origin unvan-form` | Hash listesi icin ayri belge commit'i. |

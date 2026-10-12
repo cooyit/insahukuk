@@ -71,6 +71,8 @@ const SLUG = { kural: '^[a-z0-9]+(-[a-z0-9]+)*$', mesaj: 'Yalnızca küçük har
 // Yerel kisim semadakinden biraz dar (yalniz yaygin isaretler); buyuk harf ve Turkce harf reddedilir.
 const EPOSTA = { kural: "^[a-z0-9!#$%&'*+/=?^_`{|}~.-]+@[a-z0-9-]+(\\.[a-z0-9-]+)*\\.[a-z]{2,}$", mesaj: 'Küçük harfli geçerli bir e-posta adresi yazın. Örnek: ad.soyad@buro.av.tr' };
 const TELEFON = { kural: '^\\+[1-9][0-9]{7,14}$', mesaj: 'Uluslararası biçimde, boşluksuz yazın. Örnek: +902120000000' };
+// Form servisi (form/dogrula.mjs SURUM) ayni bicimi ister; uymayan surumle sitedeki form calismaz.
+const SURUM = { kural: '^[a-z0-9][a-z0-9.-]{0,63}$', mesaj: 'Küçük harf, rakam, nokta ve tire; boşluk ve Türkçe karakter olmaz. Örnek: aydinlatma-2026-10' };
 const HTTPS = { kural: '^https://[a-z0-9.-]+(:[0-9]+)?(/\\S*)?$', mesaj: 'https:// ile başlayan geçerli bir adres yazın.' };
 
 // Alan adina gore hangi dogrulama: [kosul, kural]
@@ -79,6 +81,7 @@ const DOGRULAMA_KURALLARI = [
   [(t, a) => a === 'eposta' || a.endsWith('_eposta'), EPOSTA],
   [(t, a) => ['telefon', 'faks', 'whatsapp_numarasi'].includes(a), TELEFON],
   [(t, a) => a.endsWith('_url'), HTTPS],
+  [(t, a) => a === 'aydinlatma_surumu', SURUM],
 ];
 
 const YIL_ALANLARI = {
@@ -227,7 +230,7 @@ export const OZEL = {
   },
   'site_ayar.whatsapp_numarasi': { note: 'Sitede sabit WhatsApp butonu yok; doldurulursa yalnızca iletişim sayfasında bağlantı olabilir.' },
   'site_ayar.harita_url': { note: 'Harita gömülmez; yalnızca "Haritada aç" bağlantısı verilir (KVKK).' },
-  'site_ayar.aydinlatma_surumu': { note: 'Aydınlatma metni değişince sürümü de değiştirin (örnek: aydinlatma-2026-10).' },
+  'site_ayar.aydinlatma_surumu': { note: 'Aydınlatma metni değişince sürümü de değiştirin (örnek: aydinlatma-2026-10). Boş bırakılırsa iletişim formu mesaj kabul etmez.' },
   'site_ayar_ceviri.alt_bilgi_notu': { interface: 'input-multiline', note: '"Bu site bilgilendirme amaçlıdır" notu.' },
   'site_ayar_ceviri.adres': { interface: 'input-multiline' },
   'dil.varsayilan': { readonly: true, note: 'Varsayılan dil Türkçe; değiştirilmez.' },

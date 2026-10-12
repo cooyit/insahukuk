@@ -102,6 +102,10 @@ describe('kural: editor bicim hatasini kaydetmeden once Turkce gorur (alan dogru
     await reddedilir('/items/site_ayar', { form_bildirim_eposta: 'Bildirim@ornek.av.tr' }, 'form_bildirim_eposta', 'Küçük harfli geçerli bir e-posta');
   });
 
+  it('bicimsiz aydinlatma surumu reddedilir (form servisi o surumle mesaj kabul etmezdi)', async () => {
+    await reddedilir('/items/site_ayar', { aydinlatma_surumu: 'Aydınlatma v2' }, 'aydinlatma_surumu', 'Küçük harf, rakam, nokta ve tire');
+  });
+
   it('bosluklu telefon reddedilir; Turkce mesaj tanimli', async () => {
     await reddedilir('/items/site_ayar', { telefon: '+90 212 000 00 00' }, 'telefon', 'Uluslararası biçimde');
   });

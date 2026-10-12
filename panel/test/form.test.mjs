@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { formuDogrula, telefonNormallestir } from '../form/dogrula.mjs';
-import { formSunucusu, hizSiniri, YOL } from '../form/sunucu.mjs';
+import { formSunucusu, hizSiniri, ipGrubu, YOL } from '../form/sunucu.mjs';
 import { girisYap, istek, panel } from './api.mjs';
 
 const SITE = 'https://www.insahukuk.test';
@@ -13,6 +13,7 @@ describe('kural: form alanlari veritabaninin kurallariyla dogrulanir', () => {
     expect(telefonNormallestir('0212 000 00 00')).toBe('+902120000000');
     expect(telefonNormallestir('532 123 45 67')).toBe('+905321234567');
     expect(telefonNormallestir('0049 30 1234567')).toBe('+49301234567');
+    expect(telefonNormallestir('90 532 123 45 67')).toBe('+905321234567');
     expect(telefonNormallestir('0212 000 00')).toBeNull();
     expect(telefonNormallestir('90+212 000 00 00')).toBeNull();
     expect(telefonNormallestir('abc')).toBeNull();
@@ -22,6 +23,8 @@ describe('kural: form alanlari veritabaninin kurallariyla dogrulanir', () => {
     const temel = { ad: 'A', konu_turu: 'genel', mesaj: 'm', aydinlatma_surumu: 'aydinlatma-2026-10' };
     expect(formuDogrula({ ...temel, eposta: ' Deneme@Example.COM ' })).toMatchObject({ hatalar: [], satir: { eposta: 'deneme@example.com' } });
     expect(formuDogrula({ ...temel, eposta: 'çağrı@example.com' }).hatalar).toEqual(['eposta']);
+    // Panelin alan dogrulamasindan genis kabul edilen adres Directus'ta reddedilip 502 olurdu (inceleme).
+    for (const e of ['a"b@example.com', 'a(b)@example.com', 'a,b@example.com']) expect(formuDogrula({ ...temel, eposta: e }).hatalar, e).toEqual(['eposta']);
   });
 
   it('mesaj: CRLF tek karakter sayilir (textarea maxlength gibi); 5000 karakter siniri', () => {
@@ -42,6 +45,12 @@ describe('kural: form alanlari veritabaninin kurallariyla dogrulanir', () => {
     expect([izin('a'), izin('a'), izin('a'), izin('b')]).toEqual([true, true, false, true]);
     t = 1001;
     expect(izin('a')).toBe(true);
+  });
+
+  it('IPv6 /64 onekiyle gruplanir: ayni abonenin adres degistirmesi siniri asmaz', () => {
+    expect(ipGrubu('2001:db8:1:2:3:4:5:6')).toBe(ipGrubu('2001:db8:1:2::9'));
+    expect(ipGrubu('2001:db8:1:3::9')).not.toBe(ipGrubu('2001:db8:1:2::9'));
+    expect(ipGrubu('::ffff:203.0.113.5')).toBe('203.0.113.5');
   });
 });
 
@@ -148,11 +157,18 @@ describe('kural: form servisi mesaji Directus\'a yazar; sahte "alindi" yok', () 
     expect((await yanit.json()).mesaj).toBe('Mesajınız alınamadı. Lütfen şu alanları kontrol edin: E-posta, Telefon.');
   });
 
-  it('aydinlatma metni surumu yoksa genel ret (ziyaretci duzeltemez)', async () => {
-    const { aydinlatma_surumu, ...eksik } = ALANLAR;
-    const yanit = await gonder({ ...eksik, eposta: 'surumsuz@example.com' });
-    expect(yanit.status).toBe(400);
-    expect((await yanit.json()).mesaj).toBe('Mesajınız alınamadı. Lütfen e-posta ya da telefonla ulaşın.');
+  it('aydinlatma metni surumu yoksa genel ret (ziyaretci duzeltemez); fark edilsin diye log, kisisel veri yok', async () => {
+    const hata = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const { aydinlatma_surumu, ...eksik } = ALANLAR;
+      const yanit = await gonder({ ...eksik, eposta: 'surumsuz@example.com' });
+      expect(yanit.status).toBe(400);
+      expect((await yanit.json()).mesaj).toBe('Mesajınız alınamadı. Lütfen e-posta ya da telefonla ulaşın.');
+      expect(hata).toHaveBeenCalledWith('form: aydinlatma_surumu eksik ya da gecersiz (Site ayarlari)');
+      expect(JSON.stringify(hata.mock.calls)).not.toContain('surumsuz');
+    } finally {
+      hata.mockRestore();
+    }
     expect(await mesajlar('surumsuz@example.com')).toHaveLength(0);
   });
 

@@ -23,7 +23,12 @@ export function envHazirla() {
   if (existsSync(ENV_DOSYASI)) {
     const mevcut = envOku();
     const eksik = ornek.split(/\r?\n/).filter((s) => /^[A-Z0-9_]+=/.test(s) && !(s.split('=')[0] in mevcut));
-    if (eksik.length) appendFileSync(ENV_DOSYASI, `\n# .env.ornek'ten sonradan eklenenler\n${rastgele(eksik.join('\n'))}\n`);
+    if (eksik.length) {
+      appendFileSync(ENV_DOSYASI, `\n# .env.ornek'ten sonradan eklenenler\n${rastgele(eksik.join('\n'))}\n`);
+      // Eklenen degerler yerel gelistirme varsayilanlari (ornek: FORM_IZINLI_KAYNAK=localhost, sahte
+      // SMTP); canli sunucuda kendiliginden dogru olmazlar.
+      console.warn(`UYARI: panel/.env'e eklendi, canli sunucudaysaniz kontrol edin: ${eksik.map((s) => s.split('=')[0]).join(', ')}`);
+    }
     return false;
   }
   if (existsSync(KUME)) {
