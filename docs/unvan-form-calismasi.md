@@ -14,8 +14,8 @@
 | R1 Unvan, uydurma alan adi, yer tutucu logo | bitti |
 | R2 Form bildirim e-postasi alani (veri modeli) | bitti |
 | R3 Form servisi | bitti |
-| R4 Bildirim akisi (e-posta) | yapilmadi (sirada) |
-| R5 Inceleme ve rapor | yapilmadi |
+| R4 Bildirim akisi (e-posta) | bitti |
+| R5 Inceleme ve rapor | yapilmadi (sirada) |
 
 ## Uygulanan kararlar (acik sorular)
 
@@ -117,11 +117,40 @@ handle /api/iletisim {
 
 ---
 
+## R4 Bildirim akisi (e-posta)
+
+**Ne:** Formdan mesaj gelince buroya "yeni mesaj var" e-postasi gider. Adres panelden degisir: **Site ayarlari > Form bildirim e-postasi**. Bos birakilirsa buro e-postasina (Site ayarlari > E-posta) gider.
+
+**Nasil:** Directus'ta dorduncu akis "Yeni mesaj bildirimi" (mesaj olusturulunca, kaydi bekletmeden calisir):
+site ayarlarini oku -> "Form bildirim e-postasi dolu mu?" -> evet: o adrese / hayir: buro e-postasina yaz.
+Ayar sistem yetkisiyle okunur (mesaji olusturan form servisi site ayarini okuyamaz; bilerek).
+
+| Soru | Cevap |
+|---|---|
+| E-postada ne var? | Konu "Yeni iletisim mesaji"; govdede yalnizca mesajin panel baglantisi ve "bu e-postada mesajin icerigi ve gonderenin bilgileri yer almaz" notu. Ad, e-posta, telefon, mesaj **yok** (soru 4a-i; testli). |
+| Gonderen kim gorunur? | "INSA Yonetim Paneli" (Turkce harflerle; panelin adi), adres `EMAIL_FROM`. |
+| Yerelde e-posta nereye gider? | Hicbir yere: `npm run posta` sahte SMTP alicisini acar (`panel/betikler/sahte-smtp.mjs`, ek paket yok, yalnizca 127.0.0.1); e-postalar `panel/.veri/posta/*.eml` olarak yazilir, Mail uygulamasiyla acilir. Testler ayri bir alici (2526) kullanir ve `.env`'deki SMTP ne olursa olsun disari e-posta cikarmaz. |
+| Canlida ne gerekir? | `.env`'de `EMAIL_SMTP_HOST/PORT/USER/PASSWORD/SECURE` buronun e-posta saglayicisinin bilgileriyle; `EMAIL_FROM` o hesabin adresi. Oneri (soru 4b): Turkiye'deki saglayicinin kurumsal e-postasi; saglayici SPF/DKIM kaydini da verir (alan adi alininca DNS'e yazilir). |
+| Iki adres de bossa? | E-posta gidemez; Directus kaydina hata duser, mesaj yine panelde durur (kaybolmaz). |
+
+**Lisans:** lisanssiz katmanda en fazla 5 aktif akis var; artik 4'u kullaniliyor (panelde "1 Flow Left"). Bir akis daha eklenirse sinir dolar.
+
+**Yeni ayarlar (`panel/.env.ornek`):** `EMAIL_TRANSPORT=smtp`, `EMAIL_FROM`, `EMAIL_SMTP_*` (yerelde sahte aliciyi gosterir), `FLOWS_ENV_ALLOW_LIST=PUBLIC_URL` (e-postadaki panel baglantisi icin; akislar baska ortam degiskeni goremez). Var olan `.env`'e kurulumda otomatik eklenir.
+
+**Uygulayici:** akislar artik birden cok islem tasiyabiliyor (`islemler`, "sonra"/"aksi" baglantilari); onceki uc akis tek islemli liste oldu, davranislari degismedi.
+
+**Dogrulama:**
+- Panel testleri 68 (yeni 4: bildirim ayarli adrese gider ve kisisel veri icermez; editor adresi degistirince yeni adrese gider; bos birakilinca buro e-postasina gider; form servisinin anahtariyla gelen mesaj da bildirilir). Akis testleri dort akis ve cok islemli yapiya gore guncellendi.
+- Elle: gelistirmede `npm run posta` + `npm run panel` + `npm run form`; formdan gonderilen mesajin bildirimi `bildirim@ornek.av.tr`'ye dustu; panelde akis ve alan ekran goruntusuyle kontrol edildi. Deneme kaydi ve e-postasi silindi; sunucular kapatildi.
+
+---
+
 ## Commit aciklamalari
 
 - **R1 Unvan, alan adi, logo:** Resmi unvan (yer tutucu) ve uydurma alan adi `insahukuk.test` tek yerlerinde degisti; sitede ve panelde yer tutucu INSA logosu. Muvekkil/firma logosu testi buronun kendi logosunu dislayacak sekilde duzeltildi; panel testlerinin kapali kumede calismama hatasi giderildi.
 - **R2 Form bildirim e-postasi:** `site_ayar.form_bildirim_eposta` sutunu (CHECK'li, bos olabilir) eklendi; sema testi T17, beklenen cikti, TABLOLAR.md, veri modeli belgesi, site mock'u ve panel alani buna gore guncellendi. Adresin sitede gorunmedigi testli.
 - **R3 Form servisi:** `panel/form/` altinda ek paketsiz servis (dogrulama, telefon E.164, bal kupu, IP basina hiz siniri, Origin denetimi, IP'nin HMAC'i); Directus'a yalnizca mesaj olusturabilen, panele giremeyen ve koltuk saymayan "Form servisi" kullanicisiyla yazar. Sitenin formu artik etkin ve sunucunun gercek yanitini gosterir. Iki eski hata duzeltildi: `npm run kur`'un dongusel ice aktarmada takilmasi ve istege bagli bicimli alanlarin panelde bosaltilamamasi.
+- **R4 Bildirim akisi:** Dorduncu akis yeni mesajda Site ayarlarindaki form bildirim adresine (bossa buro e-postasina) yalnizca panel baglantisi iceren bir e-posta yollar; e-postada kisisel veri yok. Yerel gelistirme ve testler icin ek paketsiz sahte SMTP alicisi; akis uygulayicisi cok islemli akislari destekliyor.
 
 ---
 
@@ -142,3 +171,7 @@ handle /api/iletisim {
 | 11 | `git diff --cached --name-status` | Yalniz R3 dosyalari oldugunu kontrol etti. |
 | 12 | `git commit -m "Iletisim formu servisini ekle" -m "..."` | R3 commit'i. |
 | 13 | `git push origin unvan-form` | R3'u uzaga gonderdi. |
+| 14 | `git add panel/... docs/unvan-form-calismasi.md` (acik yollar) | R4 dosyalarini hazirlik alanina koydu. |
+| 15 | `git diff --cached --name-status` | Yalniz R4 dosyalari oldugunu kontrol etti. |
+| 16 | `git commit -m "Yeni mesaj bildirim akisini ekle" -m "..."` | R4 commit'i. |
+| 17 | `git push origin unvan-form` | R4'u uzaga gonderdi. |

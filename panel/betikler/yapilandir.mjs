@@ -309,8 +309,19 @@ async function akislariUygula(api, rapor) {
     } else {
       akis = (await api('POST', '/flows', { ...govde, status: 'active' })).veri;
     }
-    const islem = (await api('POST', '/operations', { ...a.islem, flow: akis.id, position_x: 19, position_y: 1 })).veri;
-    await api('PATCH', `/flows/${akis.id}`, { operation: islem.id });
+    // Islemler once baglantisiz olusturulur, sonra "sonra"/"aksi" anahtarlari kimliklere baglanir.
+    // Konum yalnizca paneldeki akis cizimi icin: sirayla saga, "aksi" dali bir alt satira.
+    const idler = new Map();
+    const aksiDali = new Set(a.islemler.map((o) => o.aksi).filter(Boolean));
+    for (const [sira, o] of a.islemler.entries()) {
+      const { sonra, aksi, ...islem } = o;
+      const konum = { position_x: 19 + 18 * sira, position_y: aksiDali.has(o.key) ? 19 : 1 };
+      idler.set(o.key, (await api('POST', '/operations', { ...islem, flow: akis.id, ...konum })).veri.id);
+    }
+    for (const o of a.islemler.filter((x) => x.sonra || x.aksi)) {
+      await api('PATCH', `/operations/${idler.get(o.key)}`, { resolve: idler.get(o.sonra) ?? null, reject: idler.get(o.aksi) ?? null });
+    }
+    await api('PATCH', `/flows/${akis.id}`, { operation: idler.get(a.islemler[0].key) });
     rapor.akislar.push(a.ad);
   }
   rapor.lisansBekleyenAkis.push(...plan.bekleyen);

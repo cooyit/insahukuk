@@ -9,7 +9,7 @@ beforeAll(async () => {
 });
 
 describe('kural: akislar lisans sinirinda kurulur', () => {
-  it('uc akis aktif; sayac sinirin altinda; kurulum kilitlenmedi', async () => {
+  it('dort akis aktif; sayac sinirin (5) altinda; kurulum kilitlenmedi', async () => {
     const { rapor } = panel();
     expect(rapor.akislar).toEqual(AKISLAR.map((a) => a.ad));
     expect(rapor.lisansBekleyenAkis).toEqual([]);
@@ -23,7 +23,7 @@ describe('kural: akislar lisans sinirinda kurulur', () => {
     for (const a of AKISLAR) {
       const bulunan = govde.data.filter((x) => x.name === a.ad);
       expect(bulunan.length, a.ad).toBe(1);
-      expect(bulunan[0].operations.length, a.ad).toBe(1);
+      expect(bulunan[0].operations.length, a.ad).toBe(a.islemler.length);
     }
   });
 });
