@@ -408,3 +408,14 @@ DELETE FROM karar_yorum WHERE kisi_id = 2;
 DELETE FROM kisi WHERE id = 2;
 SELECT count(*) AS kalan_yabanci_dil FROM kisi_yabanci_dil WHERE kisi_id = 2;
 ROLLBACK;
+
+-- ---------------------------------------------------------------------
+\echo ''
+\echo '=== T17 Form bildirim e-postası (site_ayar.form_bildirim_eposta) ==='
+\echo '--- a) geçerli adres -> kabul; boş bırakılabilir (o zaman eposta kullanılır)'
+UPDATE site_ayar SET form_bildirim_eposta = 'bildirim@insa.av.tr';
+UPDATE site_ayar SET form_bildirim_eposta = NULL;
+\echo '--- b) büyük harfli ya da @ içermeyen adres -> ikisi de reddedilmeli'
+UPDATE site_ayar SET form_bildirim_eposta = 'Bildirim@insa.av.tr';
+UPDATE site_ayar SET form_bildirim_eposta = 'bildirim-insa.av.tr';
+SELECT form_bildirim_eposta IS NULL AS bos FROM site_ayar;

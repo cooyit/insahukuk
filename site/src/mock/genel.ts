@@ -29,6 +29,7 @@ export const site_ayar: SiteAyar[] = [
     resmi_unvan: 'İnce Şafak Avukatlık Bürosu',
     telefon: '+902120000000',
     eposta: 'info@insahukuk.test',
+    form_bildirim_eposta: 'iletisim@insahukuk.test',
     linkedin_url: 'https://www.linkedin.com/company/ornek',
     harita_url: 'https://www.openstreetmap.org/?mlat=41.0600&mlon=28.9870#map=17/41.0600/28.9870',
     aydinlatma_surumu: 'aydinlatma-2026-10',

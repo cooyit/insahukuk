@@ -82,6 +82,11 @@ describe('kural: iletisim formu (KVKK, HTML dogrulama, sahte "gonderildi" yok)',
     }
   });
 
+  it('form bildirim adresi (site_ayar.form_bildirim_eposta) sitede hicbir yerde gorunmez', () => {
+    // Mesajlarin gittigi ic adres; yalnizca panelde ve form akisinda kullanilir.
+    for (const s of sayfalar) expect(s.html, s.yol).not.toContain('iletisim@insahukuk.test');
+  });
+
   it('harita gomulmez, dis baglanti verilir', () => {
     const html = main(sayfa('/iletisim'));
     expect(html).not.toMatch(/<iframe/);

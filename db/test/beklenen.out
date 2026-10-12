@@ -500,3 +500,16 @@ DELETE 1
                  0
 
 ROLLBACK
+
+=== T17 Form bildirim e-postası (site_ayar.form_bildirim_eposta) ===
+--- a) geçerli adres -> kabul; boş bırakılabilir (o zaman eposta kullanılır)
+UPDATE 1
+UPDATE 1
+--- b) büyük harfli ya da @ içermeyen adres -> ikisi de reddedilmeli
+psql:419: ERROR:  new row for relation "site_ayar" violates check constraint "site_ayar_form_bildirim_eposta_check"
+DETAIL:  Failing row contains (1, Örnek Avukatlık Bürosu, +902120000000, null, info@ornek.av.tr, Bildirim@insa.av.tr, null, null, null, null, null, null, null, null, <zaman>).
+psql:420: ERROR:  new row for relation "site_ayar" violates check constraint "site_ayar_form_bildirim_eposta_check"
+DETAIL:  Failing row contains (1, Örnek Avukatlık Bürosu, +902120000000, null, info@ornek.av.tr, bildirim-insa.av.tr, null, null, null, null, null, null, null, null, <zaman>).
+ bos 
+-----
+ t

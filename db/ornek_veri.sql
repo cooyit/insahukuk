@@ -8,8 +8,8 @@
 BEGIN;
 
 -- Site ayarları (tek satır) -------------------------------------------
-INSERT INTO site_ayar (resmi_unvan, telefon, eposta, linkedin_url, aydinlatma_surumu)
-VALUES ('[Soyad] Avukatlık Bürosu', '+902120000000', 'info@ornek.av.tr', 'https://www.linkedin.com/company/ornek', 'aydinlatma-2026-10');
+INSERT INTO site_ayar (resmi_unvan, telefon, eposta, form_bildirim_eposta, linkedin_url, aydinlatma_surumu)
+VALUES ('[Soyad] Avukatlık Bürosu', '+902120000000', 'info@ornek.av.tr', 'bildirim@ornek.av.tr', 'https://www.linkedin.com/company/ornek', 'aydinlatma-2026-10');
 INSERT INTO site_ayar_ceviri (site_ayar_id, dil, adres, alt_bilgi_notu) VALUES
   (1, 'tr', 'Örnek Mah. Örnek Cad. No: 1, Şişli / İstanbul',
    'Bu sitedeki bilgiler genel niteliktedir; hukuki görüş değildir ve avukat-müvekkil ilişkisi kurmaz.'),

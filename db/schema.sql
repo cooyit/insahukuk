@@ -568,6 +568,7 @@ CREATE TABLE site_ayar (
   telefon            text CHECK (ic.telefon_gecerli(telefon)),
   faks               text CHECK (ic.telefon_gecerli(faks)),
   eposta             text CHECK (ic.eposta_gecerli(eposta)),
+  form_bildirim_eposta text CHECK (ic.eposta_gecerli(form_bildirim_eposta)),   -- iletisim formu bildirimi buraya gider; bossa eposta (sitede gosterilmez)
   whatsapp_numarasi  text CHECK (ic.telefon_gecerli(whatsapp_numarasi)),   -- düz wa.me bağlantısı; widget yok
   linkedin_url       text CHECK (ic.https_url_gecerli(linkedin_url)),
   instagram_url      text CHECK (ic.https_url_gecerli(instagram_url)),

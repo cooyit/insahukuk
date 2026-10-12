@@ -308,6 +308,8 @@ export interface SiteAyar {
   telefon?: string | null;
   faks?: string | null;
   eposta?: string | null;
+  // Iletisim formu bildirimi buraya gider (bossa eposta). Site okumaz, yalnizca panel ve form akisi.
+  form_bildirim_eposta?: string | null;
   whatsapp_numarasi?: string | null;
   linkedin_url?: string | null;
   harita_url?: string | null;

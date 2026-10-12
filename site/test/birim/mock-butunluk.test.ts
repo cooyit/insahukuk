@@ -240,7 +240,7 @@ const CHECK_KURALLARI: Kural[] = [
   ['sayfa_ceviri.seo_baslik <= 70, seo_aciklama <= 170', 'sayfa_ceviri', (r) => (bos(r.seo_baslik) || r.seo_baslik.length <= 70) && (bos(r.seo_aciklama) || r.seo_aciklama.length <= 170)],
   ['site_ayar.id = 1', 'site_ayar', (r) => r.id === 1],
   ['site_ayar.telefon/faks/whatsapp: ic.telefon_gecerli', 'site_ayar', (r) => [r.telefon, r.faks, r.whatsapp_numarasi].every((x) => bos(x) || telefonGecerli(x))],
-  ['site_ayar.eposta: ic.eposta_gecerli', 'site_ayar', (r) => bos(r.eposta) || epostaGecerli(r.eposta)],
+  ['site_ayar.eposta / form_bildirim_eposta: ic.eposta_gecerli', 'site_ayar', (r) => [r.eposta, r.form_bildirim_eposta].every((x) => bos(x) || epostaGecerli(x))],
   ['site_ayar.*_url: ic.https_url_gecerli', 'site_ayar', (r) => [r.linkedin_url, r.harita_url].every((x) => bos(x) || httpsGecerli(x))],
 ];
 

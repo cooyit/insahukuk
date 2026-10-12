@@ -12,8 +12,8 @@
 | Paket | Durum |
 |---|---|
 | R1 Unvan, uydurma alan adi, yer tutucu logo | bitti |
-| R2 Form bildirim e-postasi alani (veri modeli) | yapilmadi (sirada) |
-| R3 Form servisi | yapilmadi |
+| R2 Form bildirim e-postasi alani (veri modeli) | bitti |
+| R3 Form servisi | yapilmadi (sirada) |
 | R4 Bildirim akisi (e-posta) | yapilmadi |
 | R5 Inceleme ve rapor | yapilmadi |
 
@@ -48,9 +48,39 @@
 
 ---
 
+## R2 Form bildirim e-postasi alani (veri modeli degisikligi)
+
+**Ne:** `site_ayar.form_bildirim_eposta` (metin, bos olabilir, `ic.eposta_gecerli` CHECK'i). Iletisim formuna yeni mesaj gelince bildirim bu adrese gider; bossa `site_ayar.eposta`. Panelden "Site ayarlari" formunda degistirilir. **Sitede gosterilmez.**
+
+**Neden ayri alan:** sitede gorunen buro e-postasi ile bildirimin gittigi ic adres farkli olabilsin (soru 3a).
+
+**Degisen dosyalar:**
+| Dosya | Degisiklik |
+|---|---|
+| `db/schema.sql` | Sutun + CHECK |
+| `db/ornek_veri.sql` | Ornek deger `bildirim@ornek.av.tr` |
+| `db/test/schema_test.sql` | Yeni grup T17: gecerli adres ve bos kabul; buyuk harfli ve @'siz adres reddedilir |
+| `db/test/beklenen.out` | `--guncelle` ile yeniden uretildi; fark yalnizca T17 (beklenen ret 44 -> 46) |
+| `db/TABLOLAR.md` | `db/araclar/tablo_belgesi.py` ile yeniden uretildi; fark tek satir |
+| `db/VERI_MODELI.md`, `db/README.md` | Diyagrama alan; test sayilari (18 grup, 46 ret) |
+| `site/src/lib/tablolar.ts`, `site/src/mock/genel.ts`, `site/test/birim/mock-butunluk.test.ts` | Tip, mock degeri (`iletisim@insahukuk.test`), CHECK kopyasi |
+| `site/test/cikti/sabit-sayfalar.test.ts` | Yeni test: bu adres hicbir sayfada gorunmez |
+| `panel/yapilandirma/alanlar.mjs`, `panel/test/yapilandirma.test.mjs` | Turkce etiket, not, Turkce mesajli dogrulama (`*_eposta` alanlarinin hepsi), test |
+
+**Var olan bir veritabani icin** (sema tekrar yuklenmeyecekse):
+```sql
+ALTER TABLE site_ayar ADD COLUMN form_bildirim_eposta text CHECK (ic.eposta_gecerli(form_bildirim_eposta));
+```
+Yerelde `cd panel && npm run sifirla` yeterli (bu yapildi).
+
+**Dogrulama:** `db/test/calistir.sh` (PG16, `LC_ALL=C`) iki yerelde TAMAM (46 ret); site check 0 hata, birim 245, cikti 70; panel 45; hepsi yesil.
+
+---
+
 ## Commit aciklamalari
 
 - **R1 Unvan, alan adi, logo:** Resmi unvan (yer tutucu) ve uydurma alan adi `insahukuk.test` tek yerlerinde degisti; sitede ve panelde yer tutucu INSA logosu. Muvekkil/firma logosu testi buronun kendi logosunu dislayacak sekilde duzeltildi; panel testlerinin kapali kumede calismama hatasi giderildi.
+- **R2 Form bildirim e-postasi:** `site_ayar.form_bildirim_eposta` sutunu (CHECK'li, bos olabilir) eklendi; sema testi T17, beklenen cikti, TABLOLAR.md, veri modeli belgesi, site mock'u ve panel alani buna gore guncellendi. Adresin sitede gorunmedigi testli.
 
 ---
 
@@ -63,3 +93,7 @@
 | 3 | `git diff --cached --name-status` | Yalniz R1 dosyalari oldugunu kontrol etti. |
 | 4 | `git commit -m "Unvan, uydurma alan adi ve yer tutucu logoyu ekle" -m "..."` | R1 commit'i. |
 | 5 | `git push -u origin unvan-form` | Yeni dali uzaga gonderdi ve izleme baglantisini kurdu. |
+| 6 | `git add db/... site/... panel/... docs/unvan-form-calismasi.md` (acik yollar) | R2 dosyalarini hazirlik alanina koydu. |
+| 7 | `git diff --cached --name-status` | Yalniz R2 dosyalari oldugunu kontrol etti. |
+| 8 | `git commit -m "Form bildirim e-postasi alanini ekle" -m "..."` | R2 commit'i. |
+| 9 | `git push origin unvan-form` | R2'yi uzaga gonderdi. |

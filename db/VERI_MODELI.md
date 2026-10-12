@@ -8,7 +8,7 @@ Bu belge veritabanı tasarımını kontrol etmeniz için. Kodun kendisi [`schema
 | [`moduller/`](moduller/) | Opsiyonel modüller (12 tablo): sektör, bülten, kariyer, açılır duyuru, karar ekleri. İstenmeyen modül yüklenmez |
 | [`ornek_veri.sql`](ornek_veri.sql) | Kurgusal örnek veri (kişiler uydurma, karar gerçek değil) |
 | [`TABLOLAR.md`](TABLOLAR.md) | Her tablonun alanları, tipleri, zorunlulukları ve kuralları (veritabanından üretildi) |
-| [`test/`](test/) | 17 test grubu (T00–T16); `db/test/calistir.sh` |
+| [`test/`](test/) | 18 test grubu (T00–T17); `db/test/calistir.sh` |
 
 **Directus 12.5 ile denendi (11 Ekim 2026):**
 - **Tanınma:** 48 tablonun hepsi koleksiyon olarak tanındı; 337 alan ve 84 ilişki var, tanınmayan alan tipi yok.
@@ -204,6 +204,7 @@ erDiagram
     text resmi_unvan
     text telefon
     text eposta
+    text form_bildirim_eposta "form bildirimi; bossa eposta"
     text whatsapp_numarasi
   }
   iletisim_mesaji {

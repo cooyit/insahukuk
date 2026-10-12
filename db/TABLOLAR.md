@@ -591,6 +591,7 @@ Site geneli ayarlar; tek satır (Directus singleton): resmi unvan, iletişim, so
 | `telefon` | metin |  | +90… biçimi |
 | `faks` | metin |  | +90… biçimi |
 | `eposta` | metin |  | küçük harfli ASCII e-posta |
+| `form_bildirim_eposta` | metin |  | iletisim formu bildirimi buraya gider; bossa eposta (sitede gosterilmez) · küçük harfli ASCII e-posta |
 | `whatsapp_numarasi` | metin |  | düz wa.me bağlantısı; widget yok · +90… biçimi |
 | `linkedin_url` | metin |  | https:// bağlantı |
 | `instagram_url` | metin |  | https:// bağlantı |

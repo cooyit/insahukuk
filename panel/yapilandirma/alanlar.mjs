@@ -7,7 +7,7 @@
 export const ETIKETLER = {
   id: 'Kimlik', slug: 'Adres (slug)', ad: 'Ad', soyad: 'Soyad', baslik: 'Başlık', ozet: 'Özet', icerik: 'İçerik',
   kod: 'Kod', sira: 'Sıra', siralama: 'Sıralama', aktif: 'Aktif', gorunur: 'Görünür', dil: 'Dil', varsayilan: 'Varsayılan',
-  tur: 'Tür', durum: 'Durum', numara: 'Numara', eposta: 'E-posta', telefon: 'Telefon', faks: 'Faks',
+  tur: 'Tür', durum: 'Durum', numara: 'Numara', eposta: 'E-posta', form_bildirim_eposta: 'Form bildirim e-postası', telefon: 'Telefon', faks: 'Faks',
   seo_baslik: 'SEO başlığı', seo_aciklama: 'SEO açıklaması', paylasim_gorseli: 'Paylaşım görseli (1200×630)',
   olusturma_zamani: 'Oluşturulma', guncelleme_zamani: 'Son güncelleme', olusturan: 'Oluşturan', guncelleyen: 'Güncelleyen',
   onaylayan: 'Onaylayan', onay_zamani: 'Onay zamanı', yayin_tarihi: 'Yayın tarihi', noindex: 'Arama motorlarına kapalı',
@@ -76,7 +76,7 @@ const HTTPS = { kural: '^https://[a-z0-9.-]+(:[0-9]+)?(/\\S*)?$', mesaj: 'https:
 // Alan adina gore hangi dogrulama: [kosul, kural]
 const DOGRULAMA_KURALLARI = [
   [(t, a) => a === 'slug' || (t === 'unvan' && a === 'kod'), SLUG],
-  [(t, a) => a === 'eposta', EPOSTA],
+  [(t, a) => a === 'eposta' || a.endsWith('_eposta'), EPOSTA],
   [(t, a) => ['telefon', 'faks', 'whatsapp_numarasi'].includes(a), TELEFON],
   [(t, a) => a.endsWith('_url'), HTTPS],
 ];
@@ -219,6 +219,9 @@ export const OZEL = {
   'karar_mevzuat.madde': { note: 'Örnek: 344, 49/2, geçici 1. Boşsa kanunun bütünü.' },
   'sayfa.anahtar': { readonly: true, note: 'Sitenin kodu bu anahtarı kullanır; değiştirilmez.' },
   'site_ayar.resmi_unvan': { note: 'Baroya kayıtlı unvan; sitede başlıkta ve alt bilgide aynen kullanılır.' },
+  'site_ayar.form_bildirim_eposta': {
+    note: 'İletişim formuna yeni mesaj gelince bildirim bu adrese gider (mesajın kendisi değil, yalnızca bildirim). Boşsa yukarıdaki e-posta kullanılır. Sitede gösterilmez.',
+  },
   'site_ayar.whatsapp_numarasi': { note: 'Sitede sabit WhatsApp butonu yok; doldurulursa yalnızca iletişim sayfasında bağlantı olabilir.' },
   'site_ayar.harita_url': { note: 'Harita gömülmez; yalnızca "Haritada aç" bağlantısı verilir (KVKK).' },
   'site_ayar.aydinlatma_surumu': { note: 'Aydınlatma metni değişince sürümü de değiştirin (örnek: aydinlatma-2026-10).' },

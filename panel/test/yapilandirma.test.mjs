@@ -98,6 +98,10 @@ describe('kural: editor bicim hatasini kaydetmeden once Turkce gorur (alan dogru
     await reddedilir('/items/kisi/2', { eposta: 'Mehmet.Kaya@ornek.av.tr' }, 'eposta', 'Küçük harfli geçerli bir e-posta');
   });
 
+  it('gecersiz form bildirim e-postasi reddedilir; Turkce mesaj tanimli', async () => {
+    await reddedilir('/items/site_ayar', { form_bildirim_eposta: 'Bildirim@ornek.av.tr' }, 'form_bildirim_eposta', 'Küçük harfli geçerli bir e-posta');
+  });
+
   it('bosluklu telefon reddedilir; Turkce mesaj tanimli', async () => {
     await reddedilir('/items/site_ayar', { telefon: '+90 212 000 00 00' }, 'telefon', 'Uluslararası biçimde');
   });
