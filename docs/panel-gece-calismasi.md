@@ -17,8 +17,8 @@
 | Q1 Yerel kurulum (PostgreSQL 16 + Directus 12.5) | bitti |
 | Q2 Koleksiyon ve alan yapilandirmasi | bitti |
 | Q3 Roller ve yetkiler | bitti (Yazar rolu lisans bekliyor) |
-| Q4 Akislar ve otomatik alanlar | yapilmadi (sirada) |
-| Q5 Son gozden gecirme ve rapor | yapilmadi |
+| Q4 Akislar ve otomatik alanlar | bitti |
+| Q5 Son gozden gecirme ve rapor | yapilmadi (sirada) |
 
 ---
 
@@ -199,6 +199,38 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 
 ---
 
+## Q4 Akislar ve otomatik alanlar
+
+**Baslamadan once**
+1. Kaynak: `db/VERI_MODELI.md` bolum 6.3 (`onaylayan`/`onay_zamani` yayina alma sirasinda bir akisla dolmali; `olusturan`/`guncelleyen` Directus'un ozel alanlari), "Ek tablolar" (`derleme_isi`: "Yayimla" kuyrugu); `db/schema.sql` CHECK'leri (yayinda -> onay_zamani dolu; anonimlestirildi = anonimlestirme_zamani dolu).
+2. En basit yol: Directus akislari (flows), her biri tek islemli. Veritabani tetikleyicisi yazmak `db/` degisikligi olurdu (yasak).
+3. Yapmazsam: **editor panelden yayina alamaz**. Onay zamani formda salt okunur (Q2), veritabani ise "yayinda" icin bu alani zorunlu tutuyor. Ayni durum karar anonimlestirmesinde de var.
+4. Uyum: lisanssiz katmanda en fazla 5 aktif akis var; 3 akis kuruldu.
+
+**Ne:** `panel/yapilandirma/akislar.mjs`
+1. **Yayin onayi** (engelleyici, yayin olustur/guncelle): yukte `durum = yayinda` var ve onay zamani yoksa `onay_zamani = simdi`, `onaylayan = islemi yapan` olarak doldurulur.
+2. **Karar onayi ve anonimlestirme** (engelleyici, karar): ayni onay mantigi. "Anonimlestirildi" isaretlenince `anonimlestirme_zamani` ve `anonimlestiren` dolar; isaret kaldirilinca ikisi temizlenir. Isareti akis kendisi koymaz.
+3. **Yayimla** (elle, onay sorar): `derleme_isi`'ne `durum = kuyrukta`, `isteyen = basan kullanici` satiri ekler. Kuyrugu isleyip siteyi derleyen sunucu gorevi bu calismanin kapsami disi.
+- `olusturan`/`guncelleyen` ve olusturma/guncelleme zamani Q2'de ozel alan olarak tanimlandi (Directus doldurur). Karar anonimlestirme zamani artik formda salt okunur.
+
+**Nasil:**
+- **Bulunan tuzak (deneyde):** engelleyici akisin son islemi degistirilmis yuku donduruyordu ama Directus bunu kullanmiyordu. Kaynak kodda (`api/dist/flows.js`) donus degeri yalnizca akisin `options.return` ayari verilmisse kullaniliyor. `return: '$last'` eklenince calisti. Bozarak dogrulamada bu ayar kaldirilinca test kirmiziya dondu.
+- Islemler Directus'un yalitilmis betik ortaminda (`exec`) calisiyor; betik yalnizca yuku ve oturum bilgisini goruyor, veritabanina erismiyor.
+- Akislarin kaydi `accountability: 'activity'`: calistigi kaydedilir ama yukun kopyasi tutulmaz.
+- Akislar da kotali: uygulayici `/license`'tan akis sinirini okur, ayni `sinirPlani()` ile asmadan uygular. Aktif akis `status: 'active'` gonderilmeden guncellenir (koleksiyondaki ayni sayac tuzagi).
+- "Yayimla" islemi tetikleyen kullanicinin yetkisiyle calisir (`permissions: '$trigger'`); editorun `derleme_isi` olusturma yetkisi Q3'te var.
+
+**Mimarideki yeri:** Editor formda `durum`'u degistirir -> Directus `items.update` filtre olayi -> akis (`exec`) yuku tamamlar -> veritabani CHECK'i gecer. "Yayimla" -> `POST /flows/trigger/<id>` -> `derleme_isi` satiri -> (ileride) sunucudaki derleme gorevi -> `site/` derlemesi.
+
+**Testler (Q4):**
+| Test | Korudugu kural |
+|---|---|
+| `akislar.test.mjs` (7) | Uc akis aktif, sayac dogru, kurulum kilitlenmedi; yeniden calistirmada akis/islem cogalmaz; yalniz durum degisince onay bilgisi dolar ve kayit kabul edilir; taslakta dolmaz; karar isaretlenince zaman/kisi dolar ve yayina alinir, kaldirilinca temizlenir; anonimlestirilmeden yayina alma reddedilir; editor "Yayimla" ile kuyruga kendi adina is ekler |
+
+Ekran goruntusunde yayin listesinin yan panelinde "Akislar" bolumu ve "Yayimla" dugmesi goruldu.
+
+---
+
 ## Kararlar tablosu
 
 | # | Karar | Gerekce | Kim karar verdi | Plandan sapma mi |
@@ -221,6 +253,10 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 | L16 | Editor icin 2FA zorunlu | inceleme 4.3 | ben karar verdim | hayir |
 | L17 | Paylasim baglantilari (shares) ve panolar editorde yok | Paylasim icerigi giris yapmadan disariya acar; panolar kullanilmiyor | ben karar verdim | hayir |
 | L18 | Editor sabit sayfa acamaz/silemez | Anahtarlari sitenin kodu kullanir | ben karar verdim | hayir |
+| L19 | Onay ve anonimlestirme zamani Directus akisiyla (veritabani tetikleyicisi degil) | `db/` degistirilemez; VERI_MODELI 6.3 akis oneriyor | ben karar verdim | hayir |
+| L20 | Akis yalniz bos onay zamanini doldurur; `yayin_tarihi`'ne dokunmaz | Yuk yalnizca degisen alanlari tasir; tarihi doldurmak zamanlanmis yayini bozabilirdi | ben karar verdim | hayir |
+| L21 | Akislarda `accountability: 'activity'` | Calisma izi kalir, yukun kopyasi kalmaz | ben karar verdim | hayir |
+| L22 | "Yayimla" yalniz kuyruga is ekler; derleme gorevi yazilmadi | Sunucu/deploy kapsam disi | ben karar verdim | hayir |
 
 ---
 
@@ -241,6 +277,7 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 | Q1 | 5/5 | `db/test/calistir.sh` (PG16, `LC_ALL=C`) iki yerelde TAMAM |
 | Q2 | 21/21 | Gelistirme ornegi `npm run sifirla` ile temizlendi (sabahki deney artiklari gitti) |
 | Q3 | 33/33 | |
+| Q4 | 40/40 | Gelistirme ornegi sifirlandi; ekran goruntusuyle "Yayimla" dugmesi kontrol edildi |
 
 **Bozarak dogrulanan:**
 | Test | Nasil bozuldu | Sonuc |
@@ -252,7 +289,9 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 | `yetkiler.test.mjs` + uygulayici korumasi | Editor'e filtreli bir `kisi.read` satiri eklendi | uygulayici hicbir sey gondermeden "lisans ozel yetki kuralina izin vermiyor: kisi.read" ile durdu (test kurulumu kirmizi), geri alindi |
 | `yetkiler.test.mjs` (sabit sayfa) | Editor'e `sayfa` icin tum eylemler verildi | kirmizi, geri alindi |
 
-- Son dogrulama: Q3 sonu, 12 Ekim 2026 (Europe/Istanbul): panel testleri 33/33 yesil.
+| `akislar.test.mjs` (onay) | Yayin akisindan `return: '$last'` kaldirildi | kirmizi, geri alindi |
+
+- Son dogrulama: Q4 sonu, 12 Ekim 2026 (Europe/Istanbul): panel testleri 40/40 yesil.
 
 ---
 
@@ -262,6 +301,7 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 - **Q1 Yerel kurulum:** `panel/` altinda Directus 12.5.0, projeye ozel PostgreSQL 16 kumesi ve tek komutluk kurulum betigi; AI/MCP kapali. Test ortami her calistirmada sifirdan kuruluyor. Lisans sinirlari kaynak koddan cikarilip belgeye yazildi.
 - **Q2 Koleksiyon ve alan yapilandirmasi:** Panel kod olarak yapilandirildi: Turkce menu ve klasorler, 14 ana koleksiyon, 266 alanin Turkce etiketi/arayuzu/dogrulamasi, 25 ceviri ve iliski alani, varsayilan listeler. Lisans kotasi hesaplanarak uygulaniyor; ceviri ve ara tablolar kotaya girmiyor. `npm run kur` tek komutta kurup yapilandiriyor.
 - **Q3 Roller ve yetkiler:** Editor rolu (icerikte tam erisim, sistemde erisim yok, 2FA zorunlu) uygulandi; Yazar rolu (yalniz kendi icerigi, yayina alamaz) tanimlandi ama lisans bekliyor. Lisanssizken paneli kilitleyecek kural gonderilmeden duruluyor. Yeniden calistirmada yetki satirlarinin cogalmasi hatasi testte bulunup duzeltildi.
+- **Q4 Akislar:** Uc Directus akisi eklendi: yayina alinca onay bilgisi, karar anonimlestirilince zaman/kisi otomatik doluyor (veritabani kurallari boylece panelden saglanabiliyor); "Yayimla" dugmesi derleme kuyruguna is ekliyor.
 
 ---
 
@@ -287,3 +327,7 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 | 16 | `git diff --cached --name-status` | Hazirlik alaninda yalniz Q3 dosyalari oldugunu kontrol etti. |
 | 17 | `git commit -m "Editor ve yazar rollerini ekle" -m "..."` | Q3 commit'i. |
 | 18 | `git push origin panel-gece` | Q3'u uzaga gonderdi. |
+| 19 | `git add docs/panel-gece-calismasi.md panel/betikler panel/yapilandirma panel/test` | Q4 dosyalarini acik yollarla hazirlik alanina koydu. |
+| 20 | `git diff --cached --name-status` | Hazirlik alaninda yalniz Q4 dosyalari oldugunu kontrol etti. |
+| 21 | `git commit -m "Onay ve yayimlama akislarini ekle" -m "..."` | Q4 commit'i. |
+| 22 | `git push origin panel-gece` | Q4'u uzaga gonderdi. |

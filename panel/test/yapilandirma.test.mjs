@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { koleksiyonPlani } from '../betikler/yapilandir.mjs';
+import { sinirPlani } from '../betikler/yapilandir.mjs';
 import { KOLEKSIYONLAR } from '../yapilandirma/koleksiyonlar.mjs';
 import { girisYap, istek, panel } from './api.mjs';
 
@@ -11,14 +11,14 @@ beforeAll(async () => {
 
 describe('kural: lisans siniri asilmaz (asilirsa Directus kurulumu kilitler)', () => {
   it('plan: sinirdayken yeni koleksiyon eklenmez, var olanlar guncellenir', () => {
-    const plan = koleksiyonPlani(['a', 'b', 'c', 'd'], new Set(['b']), 3, 2);
+    const plan = sinirPlani(['a', 'b', 'c', 'd'], new Set(['b']), 3, 2);
     expect(plan.uygula).toEqual(['a', 'b']);
     expect(plan.bekleyen).toEqual(['c', 'd']);
     expect(plan.kullanilan).toBe(3);
   });
 
   it('plan: sinirsiz lisansta (-1) hepsi uygulanir', () => {
-    expect(koleksiyonPlani(['a', 'b'], new Set(), -1, 40).bekleyen).toEqual([]);
+    expect(sinirPlani(['a', 'b'], new Set(), -1, 40).bekleyen).toEqual([]);
   });
 
   it('test kurulumunda butun ana koleksiyonlar sigdi ve kurulum kilitlenmedi', async () => {

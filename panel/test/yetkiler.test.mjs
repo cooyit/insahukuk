@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { ONERILEN, ozelKuralMi, POLITIKALAR } from '../yapilandirma/yetkiler.mjs';
-import { girisYap, istek, panel } from './api.mjs';
+import { editorGirisi, girisYap, istek, panel } from './api.mjs';
 
 const editorPolitikasi = POLITIKALAR.find((p) => p.ad === 'Editör');
 const yazarPolitikasi = POLITIKALAR.find((p) => p.ad === 'Yazar');
@@ -49,16 +49,7 @@ describe('kural: editor icerigi yonetir, sistemi yonetemez', () => {
   let editor;
 
   beforeAll(async () => {
-    const yonetici = await girisYap();
-    const { govde: rol } = await istek(yonetici, 'GET', '/roles?filter[name][_eq]=Editör&fields=id');
-    const eposta = 'editor.test@ornek.av.tr';
-    const sifre = 'Test-Editor-Sifresi-123';
-    const { govde: var_ } = await istek(yonetici, 'GET', `/users?filter[email][_eq]=${eposta}&fields=id`);
-    if (!var_.data.length) {
-      const { durum } = await istek(yonetici, 'POST', '/users', { email: eposta, password: sifre, role: rol.data[0].id, first_name: 'Test', last_name: 'Editör' });
-      expect(durum).toBe(200);
-    }
-    editor = await girisYap(eposta, sifre);
+    editor = await editorGirisi();
   });
 
   it('yayin + Turkce ceviri olusturur', async () => {

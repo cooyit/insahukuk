@@ -9,6 +9,7 @@ import { alanMeta, OZEL } from '../yapilandirma/alanlar.mjs';
 import { BIRE_COK, CEVIRILER, COKA_COK } from '../yapilandirma/iliskiler.mjs';
 import { CEVIRI_SABLONLARI, KLASORLER, KOLEKSIYONLAR, META_ALMAYANLAR } from '../yapilandirma/koleksiyonlar.mjs';
 import { ozelKuralMi, POLITIKALAR, ROLLER } from '../yapilandirma/yetkiler.mjs';
+import { AKISLAR } from '../yapilandirma/akislar.mjs';
 import { envOku } from './ortak.mjs';
 
 export async function baglan(url, eposta, sifre) {
@@ -43,9 +44,9 @@ function koleksiyonMeta(k) {
   };
 }
 
-// Lisans sinirina gore hangi koleksiyonlarin yapilandirilacagi. Zaten yapilandirilmis olan sayaci
+// Lisans sinirina gore hangi kayitlarin (koleksiyon, akis) uygulanacagi. Zaten sayilan olan sayaci
 // artirmaz; yenisi ancak sinir asilmayacaksa eklenir. sinir -1: sinirsiz.
-export function koleksiyonPlani(adlar, yapilandirilmis, sinir, kullanilan) {
+export function sinirPlani(adlar, yapilandirilmis, sinir, kullanilan) {
   const plan = { uygula: [], bekleyen: [], kullanilan };
   for (const ad of adlar) {
     if (!yapilandirilmis.has(ad)) {
@@ -80,7 +81,7 @@ async function koleksiyonlariUygula(api, rapor) {
   }
 
   const yapilandirilmis = new Set([...mevcut.values()].filter((c) => c.meta != null).map((c) => c.collection));
-  const plan = koleksiyonPlani(KOLEKSIYONLAR.map((k) => k.collection), yapilandirilmis, sinir, lisans.usage.collections);
+  const plan = sinirPlani(KOLEKSIYONLAR.map((k) => k.collection), yapilandirilmis, sinir, lisans.usage.collections);
   for (const k of KOLEKSIYONLAR.filter((x) => plan.uygula.includes(x.collection))) {
     // "status" bilerek gonderilmez: Directus status:"active" iceren her guncellemeyi sayaca +1
     // olarak denetliyor; sinirdayken zaten aktif bir koleksiyonun guncellemesi de reddedilirdi.
@@ -256,6 +257,32 @@ async function yetkileriUygula(api, rapor) {
   }
 }
 
+// --- akislar ---
+
+async function akislariUygula(api, rapor) {
+  const lisans = (await api('GET', '/license')).veri;
+  const mevcut = (await api('GET', '/flows?limit=-1&fields=id,name,status,operations.id')).veri;
+  const aktif = new Set(mevcut.filter((a) => a.status === 'active').map((a) => a.name));
+  const plan = sinirPlani(AKISLAR.map((a) => a.ad), aktif, lisans.entitlements.flows.limit, lisans.usage.flows);
+  for (const a of AKISLAR.filter((x) => plan.uygula.includes(x.ad))) {
+    const govde = { name: a.ad, icon: a.icon, description: a.aciklama, trigger: a.trigger, options: a.options, accountability: 'activity' };
+    const var_ = mevcut.find((x) => x.name === a.ad);
+    let akis;
+    if (var_) {
+      // "status" bilerek gonderilmez: aktif akisi status:"active" ile guncellemek sayaca +1 diye denetlenir.
+      akis = (await api('PATCH', `/flows/${var_.id}`, { ...govde, operation: null })).veri;
+      const eski = var_.operations.map((o) => o.id);
+      if (eski.length) await api('DELETE', '/operations', eski);
+    } else {
+      akis = (await api('POST', '/flows', { ...govde, status: 'active' })).veri;
+    }
+    const islem = (await api('POST', '/operations', { ...a.islem, flow: akis.id, position_x: 19, position_y: 1 })).veri;
+    await api('PATCH', `/flows/${akis.id}`, { operation: islem.id });
+    rapor.akislar.push(a.ad);
+  }
+  rapor.lisansBekleyenAkis.push(...plan.bekleyen);
+}
+
 // --- genel ayarlar ---
 
 async function ayarlariUygula(api) {
@@ -270,7 +297,7 @@ export async function yapilandir(env) {
   const api = await baglan(env.PUBLIC_URL, env.ADMIN_EMAIL, env.ADMIN_PASSWORD);
   const rapor = {
     koleksiyonlar: [], lisansBekleyen: [], alanSayisi: 0, iliskiSayisi: 0, lisans: null,
-    politikalar: [], roller: [], lisansBekleyenYetki: [],
+    politikalar: [], roller: [], lisansBekleyenYetki: [], akislar: [], lisansBekleyenAkis: [],
   };
   await ayarlariUygula(api);
   await koleksiyonlariUygula(api, rapor);
@@ -278,6 +305,7 @@ export async function yapilandir(env) {
   await iliskileriUygula(api, rapor);
   await listeleriUygula(api, rapor);
   await yetkileriUygula(api, rapor);
+  await akislariUygula(api, rapor);
   return rapor;
 }
 

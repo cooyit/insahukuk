@@ -203,7 +203,7 @@ export const OZEL = {
   'yayin_yazar.kisi_id': { note: 'Ekipten bir yazar seçin ya da aşağıya dış yazarın adını yazın (ikisinden biri).' },
   'karar.ofis_davasi': { note: 'Yalnızca iç bilgi; sitede hiçbir yerde gösterilmez.' },
   'karar.anonimlestirildi': { note: 'İşaretlenmeden karar yayına alınamaz (veritabanı kuralı).' },
-  'karar.anonimlestirme_zamani': { interface: 'datetime', width: 'half', note: '"Anonimleştirildi" ile birlikte doldurulmalı.' },
+  'karar.anonimlestirme_zamani': { interface: 'datetime', width: 'half', readonly: true, note: '"Anonimleştirildi" işaretlenince otomatik dolar.' },
   'karar.esas_no': {
     width: 'half',
     validation: { _and: [{ esas_no: { _regex: '^[0-9]{4}/[0-9]{1,7}$' } }] }, validation_message: 'Yıl/sıra biçiminde yazın. Örnek: 2024/1234',
