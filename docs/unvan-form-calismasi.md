@@ -180,6 +180,21 @@ Ayrica (inceleyicinin sorunsuz buldugu alanlar): DB kurallariyla esitlik, 413 yo
 
 ---
 
+## Commit listesi (dal `unvan-form`)
+
+| Paket | Commit | Baslik |
+|---|---|---|
+| R1 | `91b48f4` | Unvan, uydurma alan adi ve yer tutucu logoyu ekle |
+| R2 | `e3749be` | Form bildirim e-postasi alanini ekle |
+| R3 | `6be1474` | Iletisim formu servisini ekle |
+| R4 | `1521cca` | Yeni mesaj bildirim akisini ekle |
+| R5 | `a27161d` | Inceleme bulgularini duzelt |
+| Belge | (bu commit) | Calisma belgesine commit listesini ekle |
+
+## Yoneticiye ozet
+
+Sitenin ust kisminda artik buronun unvani ve yer tutucu "INSA" logosu var; gercek unvan ve logo gelince tek yerden degisecek. Iletisim formu calisiyor: ziyaretcinin mesaji panele duser ve buro, panelden secilen adrese "yeni mesaj var" e-postasi alir; e-postada kisisel bilgi yoktur, mesaj yalnizca panelde okunur. Forma karsi bot ve asiri gonderim korumasi var; ziyaretcinin IP adresi saklanmaz. Bunun icin ek ucretli hizmet ya da yeni lisans gerekmedi. Canliya almak icin sunucu, alan adi ve buronun kurumsal e-posta hesabinin bilgileri bekleniyor.
+
 ## Calistirilan git komutlari
 
 | # | Komut | Aciklama |
