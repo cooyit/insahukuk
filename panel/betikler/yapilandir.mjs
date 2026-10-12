@@ -1,0 +1,226 @@
+// Panel yapilandirmasini (yapilandirma/*.mjs) calisan Directus'a REST ile uygular.
+// Tekrar calistirilabilir: var olan ayar yeniden yazilir, eksik olan olusturulur.
+//
+// Lisans: once /license okunur. Yapilandirilmis koleksiyon sayisi siniri asmayacak sekilde uygulanir;
+// sigmayan koleksiyonlar "lisans bekliyor" diye raporlanir. Sinir asilirsa Directus kurulumu
+// kilitler (icerik API'si kapanir), bu yuzden sinir burada once hesaplanir.
+import { fileURLToPath } from 'node:url';
+import { alanMeta, OZEL } from '../yapilandirma/alanlar.mjs';
+import { BIRE_COK, CEVIRILER, COKA_COK } from '../yapilandirma/iliskiler.mjs';
+import { CEVIRI_SABLONLARI, KLASORLER, KOLEKSIYONLAR, META_ALMAYANLAR } from '../yapilandirma/koleksiyonlar.mjs';
+import { envOku } from './ortak.mjs';
+
+export async function baglan(url, eposta, sifre) {
+  const giris = await fetch(`${url}/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: eposta, password: sifre }),
+  });
+  if (!giris.ok) throw new Error(`Directus girisi basarisiz (${giris.status})`);
+  const token = (await giris.json()).data.access_token;
+  return async function api(yontem, yol, govde, { hataSerbest = false } = {}) {
+    const yanit = await fetch(`${url}${yol}`, {
+      method: yontem,
+      headers: { authorization: `Bearer ${token}`, ...(govde ? { 'content-type': 'application/json' } : {}) },
+      body: govde ? JSON.stringify(govde) : undefined,
+    });
+    const metin = await yanit.text();
+    const veri = metin ? JSON.parse(metin) : null;
+    if (!yanit.ok && !hataSerbest) throw new Error(`${yontem} ${yol} -> ${yanit.status}: ${metin.slice(0, 500)}`);
+    return { durum: yanit.status, veri: veri?.data, hata: veri?.errors };
+  };
+}
+
+// --- koleksiyonlar ---
+
+function koleksiyonMeta(k) {
+  // liste/listeSira/ceviriSablonu bu projenin anahtarlari; Directus meta'sina gitmez.
+  const { tr, collection, liste, listeSira, ceviriSablonu, ...meta } = k;
+  return {
+    ...meta,
+    translations: [{ language: 'tr-TR', translation: tr[1], singular: tr[0], plural: tr[1] }],
+  };
+}
+
+// Lisans sinirina gore hangi koleksiyonlarin yapilandirilacagi. Zaten yapilandirilmis olan sayaci
+// artirmaz; yenisi ancak sinir asilmayacaksa eklenir. sinir -1: sinirsiz.
+export function koleksiyonPlani(adlar, yapilandirilmis, sinir, kullanilan) {
+  const plan = { uygula: [], bekleyen: [], kullanilan };
+  for (const ad of adlar) {
+    if (!yapilandirilmis.has(ad)) {
+      if (sinir !== -1 && plan.kullanilan + 1 > sinir) {
+        plan.bekleyen.push(ad);
+        continue;
+      }
+      plan.kullanilan++;
+    }
+    plan.uygula.push(ad);
+  }
+  return plan;
+}
+
+async function koleksiyonlariUygula(api, rapor) {
+  const mevcut = new Map((await api('GET', '/collections')).veri.map((c) => [c.collection, c]));
+  const lisans = (await api('GET', '/license')).veri;
+  const sinir = lisans.entitlements.collections.limit; // -1: sinirsiz
+  rapor.lisans = {
+    ad: lisans.name,
+    durum: lisans.status,
+    koleksiyonSiniri: sinir,
+    ozelYetkiKurali: !!lisans.entitlements.custom_permission_rules_enabled?.default,
+    akisSiniri: lisans.entitlements.flows.limit,
+  };
+
+  // Klasorler (schema: null) lisans sayacina girmez.
+  for (const k of KLASORLER) {
+    const meta = { icon: k.icon, sort: k.sort, collapse: 'open', translations: [{ language: 'tr-TR', translation: k.tr }] };
+    if (mevcut.has(k.collection)) await api('PATCH', `/collections/${k.collection}`, { meta });
+    else await api('POST', '/collections', { collection: k.collection, schema: null, meta });
+  }
+
+  const yapilandirilmis = new Set([...mevcut.values()].filter((c) => c.meta != null).map((c) => c.collection));
+  const plan = koleksiyonPlani(KOLEKSIYONLAR.map((k) => k.collection), yapilandirilmis, sinir, lisans.usage.collections);
+  for (const k of KOLEKSIYONLAR.filter((x) => plan.uygula.includes(x.collection))) {
+    // "status" bilerek gonderilmez: Directus status:"active" iceren her guncellemeyi sayaca +1
+    // olarak denetliyor; sinirdayken zaten aktif bir koleksiyonun guncellemesi de reddedilirdi.
+    await api('PATCH', `/collections/${k.collection}`, { meta: koleksiyonMeta(k) });
+    rapor.koleksiyonlar.push(k.collection);
+  }
+  rapor.lisansBekleyen.push(...plan.bekleyen);
+  rapor.lisans.kullanilanKoleksiyon = plan.kullanilan;
+}
+
+// --- alanlar ---
+
+// Formdaki sira: tablo sutunlari veritabanindaki sirayla (1..), iliski alanlari onlardan sonra
+// (500+), kim/ne zaman alanlari en sonda (900+). Editor once icerigi gorsun.
+const DENETIM_ALANLARI = ['onaylayan', 'onay_zamani', 'olusturan', 'guncelleyen', 'olusturma_zamani', 'guncelleme_zamani'];
+const ILISKI_SIRA_BASI = 500;
+
+async function alanlariUygula(api, rapor) {
+  const tablolar = new Set([...KOLEKSIYONLAR.map((k) => k.collection), ...META_ALMAYANLAR]);
+  const alanlar = (await api('GET', '/fields')).veri.filter((f) => tablolar.has(f.collection) && f.schema);
+  const sutunSirasi = new Map();
+  for (const alan of alanlar) {
+    const sira = (sutunSirasi.get(alan.collection) ?? 0) + 1;
+    sutunSirasi.set(alan.collection, sira);
+    const denetim = DENETIM_ALANLARI.indexOf(alan.field);
+    const meta = {
+      ...alanMeta(alan.collection, alan),
+      sort: denetim >= 0 ? 900 + denetim : sira,
+      ...OZEL[`${alan.collection}.${alan.field}`],
+    };
+    await api('PATCH', `/fields/${alan.collection}/${alan.field}`, { meta });
+    rapor.alanSayisi++;
+  }
+}
+
+// --- iliskiler ---
+
+// Iliski alanlarinin formdaki sirasi: her tabloda cagrilma sirasiyla (ceviriler, bire-cok, coka-cok).
+const iliskiSirasi = new Map();
+
+async function aliasAlani(api, tablo, alan, ayar) {
+  const sira = (iliskiSirasi.get(tablo) ?? ILISKI_SIRA_BASI) + 1;
+  iliskiSirasi.set(tablo, sira);
+  const meta = { ...ayar, sort: sira };
+  const var_ = await api('GET', `/fields/${tablo}/${alan}`, undefined, { hataSerbest: true });
+  if (var_.durum === 200) await api('PATCH', `/fields/${tablo}/${alan}`, { meta });
+  else await api('POST', `/fields/${tablo}`, { field: alan, type: 'alias', schema: null, meta });
+}
+
+function tr(etiket) {
+  return [{ language: 'tr-TR', translation: etiket }];
+}
+
+async function iliskileriUygula(api, rapor) {
+  iliskiSirasi.clear();
+  for (const ana of CEVIRILER) {
+    const tablo = `${ana}_ceviri`;
+    await aliasAlani(api, ana, 'ceviriler', {
+      special: ['translations'],
+      interface: 'translations',
+      options: { languageField: 'ad', defaultLanguage: 'tr', userLanguage: false, defaultOpenSplitView: false },
+      display: 'translations',
+      display_options: { template: CEVIRI_SABLONLARI[ana] ?? null, languageField: 'ad', defaultLanguage: 'tr', userLanguage: false },
+      translations: tr('Çeviriler (Türkçe zorunlu)'),
+      note: 'Türkçe çeviri zorunlu; İngilizce isteğe bağlı.',
+    });
+    await api('PATCH', `/relations/${tablo}/${ana}_id`, { meta: { one_field: 'ceviriler', junction_field: 'dil', one_deselect_action: 'delete' } });
+    await api('PATCH', `/relations/${tablo}/dil`, { meta: { junction_field: `${ana}_id` } });
+    rapor.iliskiSayisi++;
+  }
+
+  for (const b of BIRE_COK) {
+    await aliasAlani(api, b.ana, b.alan, {
+      special: ['o2m'],
+      interface: 'list-o2m',
+      options: { template: b.sablon, enableSelect: false },
+      translations: tr(b.tr),
+    });
+    await api('PATCH', `/relations/${b.tablo}/${b.fk}`, { meta: { one_field: b.alan, one_deselect_action: b.silme, sort_field: b.sira ?? null } });
+    rapor.iliskiSayisi++;
+  }
+
+  for (const m of COKA_COK) {
+    await aliasAlani(api, m.ana, m.alan, {
+      special: [m.dosya ? 'files' : 'm2m'],
+      interface: m.dosya ? 'files' : 'list-m2m',
+      options: m.dosya ? null : { template: m.hedefSablon, enableCreate: false },
+      translations: tr(m.tr),
+    });
+    // Ara tablodaki satir kaldirilinca silinir (bag satiri tek basina anlamsiz).
+    await api('PATCH', `/relations/${m.ara}/${m.anaFk}`, { meta: { one_field: m.alan, junction_field: m.hedefFk, one_deselect_action: 'delete', sort_field: m.sira ?? null } });
+    await api('PATCH', `/relations/${m.ara}/${m.hedefFk}`, { meta: { junction_field: m.anaFk } });
+    rapor.iliskiSayisi++;
+  }
+}
+
+// --- liste gorunumleri ---
+
+// Herkes icin varsayilan liste sutunlari: kullanici ve rolu bos, yer imi olmayan preset.
+// (Bu, yetki kurallarindaki "presets"ten farkli; lisans sinirina girmez.)
+async function listeleriUygula(api, rapor) {
+  const mevcut = (await api('GET', '/presets?filter[user][_null]=true&filter[role][_null]=true&filter[bookmark][_null]=true&limit=-1')).veri;
+  for (const k of KOLEKSIYONLAR.filter((x) => x.liste && rapor.koleksiyonlar.includes(x.collection))) {
+    const govde = {
+      collection: k.collection,
+      layout: 'tabular',
+      layout_query: { tabular: { fields: k.liste, sort: k.listeSira ?? null, page: 1 } },
+      user: null,
+      role: null,
+      bookmark: null,
+    };
+    const var_ = mevcut.find((p) => p.collection === k.collection);
+    if (var_) await api('PATCH', `/presets/${var_.id}`, govde);
+    else await api('POST', '/presets', govde);
+  }
+}
+
+// --- genel ayarlar ---
+
+async function ayarlariUygula(api) {
+  await api('PATCH', '/settings', {
+    project_name: 'Büro Yönetim Paneli',
+    project_descriptor: 'İçerik yönetimi',
+    default_language: 'tr-TR',
+  });
+}
+
+export async function yapilandir(env) {
+  const api = await baglan(env.PUBLIC_URL, env.ADMIN_EMAIL, env.ADMIN_PASSWORD);
+  const rapor = { koleksiyonlar: [], lisansBekleyen: [], alanSayisi: 0, iliskiSayisi: 0, lisans: null };
+  await ayarlariUygula(api);
+  await koleksiyonlariUygula(api, rapor);
+  await alanlariUygula(api, rapor);
+  await iliskileriUygula(api, rapor);
+  await listeleriUygula(api, rapor);
+  return rapor;
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const rapor = await yapilandir(envOku());
+  console.log(`Lisans: ${rapor.lisans.ad}; yapilandirilmis koleksiyon ${rapor.lisans.kullanilanKoleksiyon}/${rapor.lisans.koleksiyonSiniri === -1 ? 'sinirsiz' : rapor.lisans.koleksiyonSiniri}`);
+  console.log(`Koleksiyon: ${rapor.koleksiyonlar.length}, alan: ${rapor.alanSayisi}, iliski: ${rapor.iliskiSayisi}`);
+  if (rapor.lisansBekleyen.length) console.log(`Lisans bekleyen koleksiyonlar: ${rapor.lisansBekleyen.join(', ')}`);
+}

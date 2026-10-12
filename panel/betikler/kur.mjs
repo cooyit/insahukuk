@@ -63,11 +63,33 @@ export function kur(env) {
   return semaYukle(env);
 }
 
+// Yapilandirma REST ile uygulanir, yani Directus calisiyor olmali: panel zaten aciksa onu kullanir,
+// degilse gecici olarak acip kapatir. Directus yeni tablolari ancak acilista gordugu icin (db/README.md)
+// sema yuklendikten sonra acilmasi da gerekir.
+export async function kurVeYapilandir(env) {
+  const semaYuklendi = kur(env);
+  const { ayaktaMi, directusBaslat } = await import('./sunucu.mjs');
+  const { yapilandir } = await import('./yapilandir.mjs');
+  const acik = await ayaktaMi(env.PUBLIC_URL);
+  if (acik && semaYuklendi) {
+    throw new Error('Sema yeni yuklendi ama panel zaten acik: Directus yeni tablolari gormez. Paneli kapatip tekrar "npm run kur" calistirin.');
+  }
+  const sunucu = acik ? null : await directusBaslat(env);
+  try {
+    return { semaYuklendi, rapor: await yapilandir(env) };
+  } finally {
+    sunucu?.kapat();
+  }
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const yeni = envHazirla();
   const env = envOku();
-  const semaYuklendi = kur(env);
+  const { semaYuklendi, rapor } = await kurVeYapilandir(env);
   console.log(yeni ? '.env uretildi (yonetici parolasi .env icinde: ADMIN_PASSWORD).' : '.env mevcut.');
   console.log(semaYuklendi ? 'Sema ve ornek veri yuklendi.' : 'Sema zaten yuklu; dokunulmadi.');
+  const sinir = rapor.lisans.koleksiyonSiniri === -1 ? 'sinirsiz' : rapor.lisans.koleksiyonSiniri;
+  console.log(`Yapilandirma: lisans ${rapor.lisans.ad}, koleksiyon ${rapor.lisans.kullanilanKoleksiyon}/${sinir}, alan ${rapor.alanSayisi}, iliski ${rapor.iliskiSayisi}`);
+  if (rapor.lisansBekleyen.length) console.log(`Lisans bekleyen koleksiyonlar: ${rapor.lisansBekleyen.join(', ')}`);
   console.log(`Paneli baslatmak icin: npm run panel  (${env.PUBLIC_URL})`);
 }

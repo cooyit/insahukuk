@@ -15,8 +15,8 @@
 |---|---|
 | Q0 Hazirlik | bitti |
 | Q1 Yerel kurulum (PostgreSQL 16 + Directus 12.5) | bitti |
-| Q2 Koleksiyon ve alan yapilandirmasi | yapilmadi (sirada) |
-| Q3 Roller ve yetkiler | yapilmadi |
+| Q2 Koleksiyon ve alan yapilandirmasi | bitti |
+| Q3 Roller ve yetkiler | yapilmadi (sirada) |
 | Q4 Akislar ve otomatik alanlar | yapilmadi |
 | Q5 Son gozden gecirme ve rapor | yapilmadi |
 
@@ -131,6 +131,44 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 
 ---
 
+## Q2 Koleksiyon ve alan yapilandirmasi
+
+**Baslamadan once**
+1. Kaynak: `db/VERI_MODELI.md` bolum 6 (ceviri alanlari ve `one_deselect_action: delete`; bicim kurallari Turkce mesajla alan dogrulamasina; `olusturan`/`guncelleyen` ozel alanlari; `kisi_yabanci_dil.dil_kodu` acilir liste; iletisim mesajinda degisiklik kaydi kapali), `db/schema.sql` (CHECK'ler, secenek listeleri).
+2. En basit yol: yapilandirma duz JS veri dosyalari + REST ile uygulayan tek betik. Directus `schema snapshot/apply` YAML'i yerine: snapshot elle okunmayacak kadar uzun, yetkileri ve lisans siniri hesabini icermiyor.
+3. Yapmazsam: panel Ingilizce, alanlar "Ust Alan Id" gibi, ceviriler ayri tablolarda, editor gecersiz slug'i ancak veritabani hatasiyla gorur.
+4. Uyum: lisans siniri hesaplanarak uygulanir (asilirsa kurulum kilitlenir); zengin metin arac cubugunda gorsel yok (site `/assets` kullanmayacak).
+
+**Ne:**
+- `panel/yapilandirma/koleksiyonlar.mjs`: 5 klasor (Ekip, Icerik, Kararlar, Gelen kutusu, Site) ve 14 ana koleksiyon (Turkce ad, ikon, not, gosterim sablonu, varsayilan liste sutunlari, arsiv alani, `site_ayar` tek kayit, `iletisim_mesaji` degisiklik kaydi kapali).
+- `panel/yapilandirma/alanlar.mjs`: ~150 alan icin Turkce etiket; kurallardan varsayilan (gizli kimlik, salt okunur zaman damgalari, `olusturan`/`guncelleyen` otomatik, tek satir/cok satir, evet/hayir, yil sinirlari, dosya ve iliski secicileri); CHECK listelerinden Turkce acilir listeler; slug, e-posta, telefon, https, esas/karar no, ISBN icin Turkce mesajli dogrulama; turune gore gizlenen alanlar (kitap/video/haber); ~50 alan notu (reklam yasagi, KVKK uyarilari dahil).
+- `panel/yapilandirma/iliskiler.mjs`: 9 ceviri sekmesi, 8 bire-cok liste (telefonlar, diller, egitim, deneyim, alt alanlar, daireler, yazarlar, mevzuat), 8 coka-cok baglanti (alanlar, etiketler, PDF ekleri, yayin <-> karar).
+- `panel/betikler/yapilandir.mjs` (uygulayici), `sunucu.mjs` (Directus'u gecici acar), `sifirla.mjs`; `npm run kur` artik yapilandirmayi da uyguluyor; `npm run yapilandir`, `npm run sifirla` eklendi.
+
+**Nasil (en onemli bulgu ve karar):**
+- **Deney (gelistirme orneginde):** ana koleksiyon (kisi) meta aldi, ceviri tablosu (kisi_ceviri) almadi. Ceviri sekmesi API'de ve uygulamada calisti; ic ice kayit yazildi; meta'siz tablonun alanlarina da Turkce ayar verilebildi (alan servisinde lisans denetimi yok). Lisans sayaci yalniz 2 gosterdi.
+- **Karar:** 22 ceviri/ara tablo meta almiyor (sayilmiyor) ama alanlari yapilandiriliyor. Boylece 25'lik kotanin 14'u kullaniliyor; 11 yer opsiyonel moduller icin bos.
+- Uygulayici once `/license`'i okur; `koleksiyonPlani()` siniri asacak koleksiyonu "lisans bekliyor" diye ayirir. Koleksiyon guncellemesinde `status` bilerek gonderilmiyor: Directus `status: "active"` iceren her guncellemeyi sayaca +1 diye denetliyor.
+- Dogrulama: Directus alan dogrulamasini API'de uygular (`FAILED_VALIDATION`, kayit veritabanina gitmez); Turkce mesaji ise yalnizca formda gosterir. Veritabani CHECK'leri yine son guvence.
+- Adi ceviri tablosunda olan kayitlarda (alan, etiket, yayin) sablon `{{ceviriler.ad}}` ile ceviriden okuyor; Directus dilleri yan yana yaziyor ("Imar Hukuku, Zoning Law").
+- Formda sira: tablo sutunlari, sonra iliski alanlari, en sonda kim/ne zaman alanlari.
+
+**Ekran goruntuleriyle kontrol edildi** (Playwright + sistem Chrome, yerel; goruntuler depoya konmadi): menu Turkce ve klasorlu; kisi formunda ceviri sekmesi, telefonlar ("Dahili: 101"), yabanci diller ("Ingilizce", "Almanca"), egitim, deneyim, calisma alanlari; yayin formunda Turkce tur/durum listeleri, notlar, ceviri sekmesi, yazarlar; listelerde Turkce adlar.
+
+**Bilinen sinirlar (duzeltilmedi, not edildi):**
+- Bire-cok sablonunda bos alan "--" yaziyor (yazar listesi: "Mehmet Kaya--", "-- --Can Ozturk"): Directus sablon davranisi.
+- Iliski secicilerinde ad tum dillerde yan yana gorunuyor.
+- Uygulama ilk giriste "lisans anahtariniz var mi?" ve "proje sahibi belirlenmedi" pencereleri aciyor. Proje sahibi e-postasi MSCL lisans sartlarinin kabulu demek; **buro karar vermeli**, bu gece doldurulmadi.
+
+**Mimarideki yeri:** `npm run kur` -> `kur.mjs` (veritabani + bootstrap + sema) -> `sunucu.mjs` (gecici Directus) -> `yapilandir.mjs` -> Directus REST (`/collections`, `/fields`, `/relations`, `/presets`, `/settings`) -> `directus_*` sistem tablolari. Bizim tablolara (`db/schema.sql`) dokunulmaz.
+
+**Testler (Q2):**
+| Test | Korudugu kural |
+|---|---|
+| `yapilandirma.test.mjs` (16) | Lisans plani (sinirda yeni koleksiyon eklenmez; sinirsizda hepsi); test kurulumu kilitlenmedi ve sayac <= sinir; ikinci calistirma ayni sonucu verir; panel dili tr-TR; Turkce ad + klasor; ceviri tablosu meta'siz; site ayari tek kayit; iletisim mesajinda degisiklik kaydi kapali ve IP gizli; slug/e-posta/telefon bicim hatasi panelde yakalanir ve Turkce mesaji tanimli; yayin + TR/EN ceviri tek istekte; EN ceviri formdan kaldirilinca silinir, TR kaldirilamaz; bire-cok ve coka-cok okunur |
+
+---
+
 ## Kararlar tablosu
 
 | # | Karar | Gerekce | Kim karar verdi | Plandan sapma mi |
@@ -143,6 +181,11 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 | L6 | Testler her seferinde `insa_test`'i sifirdan kurar | Gelistirme verisi bozulmasin; testler birbirinden bagimsiz | ben karar verdim | hayir |
 | L7 | `AI_ENABLED=false`, `MCP_ENABLED=false` | Directus 12'de varsayilan acik; KVKK | ben karar verdim | hayir |
 | L8 | Opsiyonel moduller yuklenmedi | Buronun cevabini bekliyor (VERI_MODELI bolum 4) | ben karar verdim | hayir |
+| L9 | Yalniz 14 ana koleksiyon meta alir; 22 ceviri/ara tablo meta'siz ama alanlari yapilandirili | Lisans kotasi (25); denendi, calisiyor | ben karar verdim | hayir |
+| L10 | Yapilandirma JS veri dosyasi + REST uygulayici (schema snapshot YAML degil) | Okunur, yorumlanabilir; lisans hesabi ve yetkiler snapshot'ta yok | ben karar verdim | hayir |
+| L11 | Proje sahibi (MSCL) penceresi doldurulmadi | Lisans sartlarini kabul buronun karari | ben karar verdim | hayir |
+| L12 | Panel adi "Buro Yonetim Paneli" (unvan degil) | Unvan henuz belli degil (inceleme bolum 7) | ben karar verdim | hayir |
+| L13 | `npm run kur` yapilandirmayi da uygular; Directus'u gecici acar | Tek komut; Directus yeni tablolari ancak acilista gorur | ben karar verdim | hayir |
 
 ---
 
@@ -161,13 +204,16 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 | Paket | Panel testleri | Not |
 |---|---|---|
 | Q1 | 5/5 | `db/test/calistir.sh` (PG16, `LC_ALL=C`) iki yerelde TAMAM |
+| Q2 | 21/21 | Gelistirme ornegi `npm run sifirla` ile temizlendi (sabahki deney artiklari gitti) |
 
 **Bozarak dogrulanan:**
 | Test | Nasil bozuldu | Sonuc |
 |---|---|---|
 | `kurulum.test.mjs` (AI/MCP kapali) | Test ortaminda `AI_ENABLED=true` | kirmizi, geri alindi |
+| `yapilandirma.test.mjs` (KVKK degisiklik kaydi) | `iletisim_mesaji` `accountability: 'all'` | kirmizi, geri alindi |
+| `yapilandirma.test.mjs` (lisans plani) | Sinir karsilastirmasi bir fazla sayacak sekilde bozuldu | kirmizi, geri alindi |
 
-- Son dogrulama: Q1 sonu, 12 Ekim 2026 09:15 (Europe/Istanbul): panel testleri 5/5 yesil.
+- Son dogrulama: Q2 sonu, 12 Ekim 2026 (Europe/Istanbul): panel testleri 21/21 yesil.
 
 ---
 
@@ -175,6 +221,7 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 
 - **Q0 Hazirlik:** Panel calismasinin ilerleme belgesi acildi: cerceve, lisans siniri, acik sorular, plan, ortam ve uyandirma duzeltmesi.
 - **Q1 Yerel kurulum:** `panel/` altinda Directus 12.5.0, projeye ozel PostgreSQL 16 kumesi ve tek komutluk kurulum betigi; AI/MCP kapali. Test ortami her calistirmada sifirdan kuruluyor. Lisans sinirlari kaynak koddan cikarilip belgeye yazildi.
+- **Q2 Koleksiyon ve alan yapilandirmasi:** Panel kod olarak yapilandirildi: Turkce menu ve klasorler, 14 ana koleksiyon, 266 alanin Turkce etiketi/arayuzu/dogrulamasi, 25 ceviri ve iliski alani, varsayilan listeler. Lisans kotasi hesaplanarak uygulaniyor; ceviri ve ara tablolar kotaya girmiyor. `npm run kur` tek komutta kurup yapilandiriyor.
 
 ---
 
@@ -191,3 +238,8 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 | 7 | `git diff --cached --name-status` | Hazirlik alaninda yalniz Q1 dosyalari, `.env` olmadigini kontrol etti. |
 | 8 | `git commit -m "Directus yerel kurulumunu ekle" -m "..."` | Q1 commit'i. |
 | 9 | `git push origin panel-gece` | Q1'i uzaga gonderdi. |
+| 10 | `git diff --no-index --stat <yedek> betikler/yapilandir.mjs` | Bozarak dogrulamada gecici degisikligin tek satir oldugunu gordu (depoya dokunmaz). |
+| 11 | `git add docs/panel-gece-calismasi.md panel/package.json panel/README.md panel/betikler panel/yapilandirma panel/test` | Q2 dosyalarini acik yollarla hazirlik alanina koydu. |
+| 12 | `git diff --cached --name-status` | Hazirlik alaninda yalniz Q2 dosyalari oldugunu kontrol etti. |
+| 13 | `git commit -m "Panel yapilandirmasini kod olarak ekle" -m "..."` | Q2 commit'i. |
+| 14 | `git push origin panel-gece` | Q2'yi uzaga gonderdi. |

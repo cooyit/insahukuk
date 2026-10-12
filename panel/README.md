@@ -5,9 +5,11 @@ Gereken: Node >= 22.12, PostgreSQL 16 (yalnizca programlari; sunucu bu klasorde 
 ```
 cd panel
 npm ci
-npm run kur        # .env uretir, panel/.veri altinda PostgreSQL kumesi acar, Directus + sema + ornek veri
+npm run kur        # .env uretir, panel/.veri altinda PostgreSQL kumesi acar, Directus + sema + ornek veri + panel yapilandirmasi
 npm run panel      # http://localhost:8055  (giris: .env icindeki ADMIN_EMAIL / ADMIN_PASSWORD)
 npm test           # ayri bir test veritabani (insa_test) ve 8056 portunda ayri Directus ile
+npm run yapilandir # yapilandirma/*.mjs degisince: calisan panele yeniden uygular
+npm run sifirla    # gelistirme veritabanini silip sifirdan kurar (panel kapaliyken)
 npm run db:durdur  # PostgreSQL kumesini durdurur
 ```
 

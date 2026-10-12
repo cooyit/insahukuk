@@ -7,6 +7,8 @@
   },
   "scripts": {
     "kur": "node betikler/kur.mjs",
+    "yapilandir": "node betikler/yapilandir.mjs",
+    "sifirla": "node betikler/sifirla.mjs",
     "panel": "directus start",
     "db:baslat": "node betikler/veritabani.mjs baslat",
     "db:durdur": "node betikler/veritabani.mjs durdur",

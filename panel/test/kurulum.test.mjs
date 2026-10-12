@@ -15,7 +15,8 @@ describe('kural: panel tek komutla kurulur ve semayi tanir', () => {
 
   it('db/schema.sql cekirdek semasinin 36 tablosu koleksiyon olarak goruluyor', async () => {
     const { govde } = await istek(token, 'GET', '/collections');
-    const bizim = govde.data.map((c) => c.collection).filter((ad) => !ad.startsWith('directus_'));
+    // schema null: klasor (tablosu yok); onlar sayilmaz.
+    const bizim = govde.data.filter((c) => c.schema).map((c) => c.collection).filter((ad) => !ad.startsWith('directus_'));
     expect(bizim.length).toBe(36);
     expect(bizim).toEqual(expect.arrayContaining(['kisi', 'yayin', 'yayin_ceviri', 'karar', 'site_ayar', 'iletisim_mesaji']));
   });
