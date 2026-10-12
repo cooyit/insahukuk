@@ -29,7 +29,7 @@ export async function setup({ provide }) {
   const ilkRapor = await yapilandir(env);
   const rapor = await yapilandir(env);
 
-  provide('panel', { url: env.PUBLIC_URL, eposta: env.ADMIN_EMAIL, sifre: env.ADMIN_PASSWORD, ilkRapor, rapor });
+  provide('panel', { url: env.PUBLIC_URL, eposta: env.ADMIN_EMAIL, sifre: env.ADMIN_PASSWORD, formToken: env.FORM_DIRECTUS_TOKEN, ilkRapor, rapor });
 }
 
 export async function teardown() {

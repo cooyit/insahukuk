@@ -4,22 +4,12 @@
 //   7. Directus'u (gerekirse gecici) acip panel yapilandirmasini uygular
 // Sira db/README.md "Kurulum sirasi" ile ayni: sema directus_users/directus_files'a baglandigi icin
 // once Directus tablolari olusmali.
-import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { calistir, envHazirla, envOku, KOK, PANEL, psql, sorgu, VERI } from './ortak.mjs';
+import { calistir, directusAyarDosyasi, envHazirla, envOku, KOK, PANEL, psql, sorgu } from './ortak.mjs';
 import { baslat } from './veritabani.mjs';
 
 const DIRECTUS_CLI = join(PANEL, 'node_modules', 'directus', 'cli.js');
-
-// Directus ayar dosyasini (CONFIG_PATH) verilen env'den uretir. Directus panel/.env'i surec ortam
-// degiskenlerinin onune koydugu icin test ortami (insa_test) ayri bir dosyayla calismali.
-export function directusAyarDosyasi(env) {
-  mkdirSync(VERI, { recursive: true });
-  const dosya = join(VERI, `directus-${env.DB_DATABASE}.env`);
-  writeFileSync(dosya, Object.entries(env).map(([k, v]) => `${k}=${v}`).join('\n'));
-  return dosya;
-}
 
 // Directus CLI'yi verilen env ile calistirir; Windows'ta .cmd sorunu olmasin diye node ile
 // dogrudan cli.js cagrilir.

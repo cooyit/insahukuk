@@ -13,6 +13,7 @@
     "db:baslat": "node betikler/veritabani.mjs baslat",
     "db:durdur": "node betikler/veritabani.mjs durdur",
     "db:durum": "node betikler/veritabani.mjs durum",
+    "form": "node form/sunucu.mjs",
     "test": "vitest run"
   },
   "dependencies": {

@@ -82,6 +82,21 @@ describe('kural: iletisim formu (KVKK, HTML dogrulama, sahte "gonderildi" yok)',
     }
   });
 
+  it('form gizli gelmez ve form servisine gider; dil, aydinlatma surumu ve bal kupu gizli alanlari var', () => {
+    for (const [yol, dil] of [['/iletisim', 'tr'], ['/en/contact', 'en']]) {
+      const html = main(sayfa(yol));
+      const form = etiketler(html, 'form')[0];
+      expect(form, yol).not.toMatch(/\shidden[\s>]/);
+      expect(nitelik(form, 'action')).toBe('/api/iletisim');
+      expect(nitelik(form, 'method')).toBe('post');
+      const gizli = (ad: string) => etiketler(html, 'input').find((e) => nitelik(e, 'name') === ad)!;
+      expect(nitelik(gizli('dil'), 'value'), yol).toBe(dil);
+      expect(nitelik(gizli('aydinlatma_surumu'), 'value'), yol).toBe('aydinlatma-2026-10');
+      expect(gizli('web_sitesi'), yol).toMatch(/\shidden[\s>/]/);
+      expect(gorunenMetin(html), yol).not.toMatch(/henüz devrede|not active yet/);
+    }
+  });
+
   it('form bildirim adresi (site_ayar.form_bildirim_eposta) sitede hicbir yerde gorunmez', () => {
     // Mesajlarin gittigi ic adres; yalnizca panelde ve form akisinda kullanilir.
     for (const s of sayfalar) expect(s.html, s.yol).not.toContain('iletisim@insahukuk.test');

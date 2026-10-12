@@ -16,8 +16,9 @@ describe('kural: lisanssiz katmanda ozel yetki kurali yok (olursa kurulum kilitl
     expect(ozelKuralMi(kendiProfili)).toBe(false);
   });
 
-  it('Editor politikasinin hicbir satiri ozel kural degil', () => {
+  it('Editor ve Form servisi politikalarinin hicbir satiri ozel kural degil', () => {
     expect(editorPolitikasi.yetkiler.filter(ozelKuralMi)).toEqual([]);
+    expect(POLITIKALAR.find((p) => p.ad === 'Form servisi').yetkiler.filter(ozelKuralMi)).toEqual([]);
   });
 
   it('Yazar politikasi ozel kural iceriyor; bu yuzden lisans gerekir', () => {
@@ -25,9 +26,10 @@ describe('kural: lisanssiz katmanda ozel yetki kurali yok (olursa kurulum kilitl
     expect(yazarPolitikasi.yetkiler.some(ozelKuralMi)).toBe(true);
   });
 
-  it('lisanssiz test kurulumunda Editor uygulandi, Yazar lisans bekliyor, kurulum kilitlenmedi', async () => {
+  it('lisanssiz test kurulumunda Editor ve Form servisi uygulandi, Yazar lisans bekliyor, kurulum kilitlenmedi', async () => {
     const { rapor } = panel();
-    expect(rapor.roller).toEqual(['Editör']);
+    expect(rapor.roller).toEqual(['Editör', 'Form servisi']);
+    expect(rapor.formServisi).toBe(true);
     expect(rapor.lisansBekleyenYetki).toEqual(['Yazar']);
     const token = await girisYap();
     const { govde } = await istek(token, 'GET', '/license');

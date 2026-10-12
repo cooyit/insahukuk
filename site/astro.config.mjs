@@ -20,4 +20,8 @@ export default defineConfig({
   },
 
   integrations: [sitemap()],
+
+  // Yalnizca "astro dev": formun /api/iletisim istegi yerel form servisine (panel'de "npm run form")
+  // gider. Derlenen siteye girmez; canlida ayni yolu ters vekil (Caddy) yonlendirir.
+  vite: { server: { proxy: { '/api': 'http://127.0.0.1:8065' } } },
 });

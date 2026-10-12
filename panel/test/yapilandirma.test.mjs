@@ -110,6 +110,18 @@ describe('kural: editor bicim hatasini kaydetmeden once Turkce gorur (alan dogru
     const { durum } = await istek(token, 'PATCH', '/items/kisi/3', { slug: 'elif-demir' });
     expect(durum).toBe(200);
   });
+
+  it('istege bagli alan bosaltilabilir (form bildirim adresi silinince buro e-postasi kullanilir)', async () => {
+    const { govde: once } = await istek(token, 'GET', '/items/site_ayar?fields=form_bildirim_eposta,faks');
+    const bosalt = await istek(token, 'PATCH', '/items/site_ayar', { form_bildirim_eposta: null, faks: null });
+    expect(bosalt.durum).toBe(200);
+    expect((await istek(token, 'PATCH', '/items/site_ayar', once.data)).durum).toBe(200);
+  });
+
+  it('zorunlu alanda kural degismedi: bos e-posta reddedilir', async () => {
+    const { govde: f } = await istek(token, 'GET', '/fields/iletisim_mesaji/eposta');
+    expect(f.data.meta.validation).toEqual({ _and: [{ eposta: { _regex: expect.any(String) } }] });
+  });
 });
 
 describe('kural: ceviriler ana kayitla birlikte duzenlenir; Turkce ceviri zorunlu', () => {

@@ -220,7 +220,7 @@ async function adlaBul(api, yol, ad) {
 }
 
 async function politikaUygula(api, p) {
-  const govde = { name: p.ad, description: p.aciklama, icon: p.icon, admin_access: false, app_access: true, enforce_tfa: p.enforce_tfa };
+  const govde = { name: p.ad, description: p.aciklama, icon: p.icon, admin_access: false, app_access: p.uygulamaErisimi !== false, enforce_tfa: p.enforce_tfa };
   const var_ = await adlaBul(api, '/policies', p.ad);
   const politika = var_ ? (await api('PATCH', `/policies/${var_.id}`, govde)).veri : (await api('POST', '/policies', govde)).veri;
   // Tekrar calistirilabilirlik: politikanin yetkileri tanimdaki haliyle yeniden yazilir. Once yeniler
@@ -270,6 +270,21 @@ async function yetkileriUygula(api, rapor) {
     await rolUygula(api, r, politikaId);
     rapor.roller.push(r.ad);
   }
+}
+
+// --- form servisi kullanicisi ---
+
+// Iletisim formu servisinin Directus kullanicisi: e-postasi ve parolasi yok (giris yapamaz), yalnizca
+// .env'deki FORM_DIRECTUS_TOKEN anahtariyla istek yapar. Rolunun politikasi panel erisimi vermedigi
+// icin lisans koltugu saymaz. Rolune bagli tek kullanici; varsa anahtari yeniden yazilir.
+async function formServisiUygula(api, env, rapor) {
+  const rol = await adlaBul(api, '/roles', 'Form servisi');
+  if (!rol || !env.FORM_DIRECTUS_TOKEN) return;
+  const govde = { first_name: 'İletişim formu', last_name: 'servisi', role: rol.id, status: 'active', token: env.FORM_DIRECTUS_TOKEN };
+  const var_ = (await api('GET', `/users?filter[role][_eq]=${rol.id}&fields=id&limit=1`)).veri;
+  if (var_.length) await api('PATCH', `/users/${var_[0].id}`, govde);
+  else await api('POST', '/users', govde);
+  rapor.formServisi = true;
 }
 
 // --- akislar ---
@@ -330,7 +345,7 @@ export async function yapilandir(env) {
   const api = await baglan(env.PUBLIC_URL, env.ADMIN_EMAIL, env.ADMIN_PASSWORD);
   const rapor = {
     koleksiyonlar: [], lisansBekleyen: [], alanSayisi: 0, iliskiSayisi: 0, lisans: null,
-    politikalar: [], roller: [], lisansBekleyenYetki: [], akislar: [], lisansBekleyenAkis: [],
+    politikalar: [], roller: [], lisansBekleyenYetki: [], formServisi: false, akislar: [], lisansBekleyenAkis: [],
   };
   await ayarlariUygula(api);
   await koleksiyonlariUygula(api, rapor);
@@ -338,6 +353,7 @@ export async function yapilandir(env) {
   await iliskileriUygula(api, rapor);
   await listeleriUygula(api, rapor);
   await yetkileriUygula(api, rapor);
+  await formServisiUygula(api, env, rapor);
   await akislariUygula(api, rapor);
   return rapor;
 }
@@ -349,6 +365,7 @@ export function raporuYaz(rapor) {
   console.log(`Lisans: ${rapor.lisans.ad}; koleksiyon ${rapor.lisans.kullanilanKoleksiyon}/${sinir}, alan ${rapor.alanSayisi}, iliski ${rapor.iliskiSayisi}`);
   if (rapor.lisansBekleyen.length) console.log(`Lisans bekleyen koleksiyonlar: ${rapor.lisansBekleyen.join(', ')}`);
   console.log(`Roller: ${rapor.roller.join(', ') || '-'}${rapor.lisansBekleyenYetki.length ? `; lisans bekleyen: ${rapor.lisansBekleyenYetki.join(', ')}` : ''}`);
+  console.log(`Form servisi kullanicisi: ${rapor.formServisi ? 'hazir' : 'kurulmadi (.env\'de FORM_DIRECTUS_TOKEN yok)'}`);
   console.log(`Akislar: ${rapor.akislar.join(', ') || '-'}`);
   if (rapor.lisansBekleyenAkis.length) {
     console.warn(`UYARI: lisans siniri yuzunden kurulmayan akislar: ${rapor.lisansBekleyenAkis.join(', ')}. Bunlar olmadan yayina alma veritabani hatasi verir.`);

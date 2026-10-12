@@ -8,6 +8,8 @@
 //     satirlari (birebir ayni olduklari icin muaf). Lisanssiz kurulabilir.
 //   - Yazar: "yalnizca kendi kaydi, yayina alamaz" filtre ister; YALNIZCA lisans ozel kurala izin
 //     veriyorsa uygulanir. Bu gece lisans olmadigi icin uygulanmadi ve denenmedi.
+//   - Form servisi: iletisim formu servisinin kullanicisi; yalnizca iletisim_mesaji olusturur, panel
+//     erisimi yok (lisans koltugu saymaz). Kullanicisini yapilandir.mjs olusturur.
 // Yonetici: Directus'un hazir "Administrator" rolu (bootstrap'in actigi ilk kullanici).
 import { createRequire } from 'node:module';
 
@@ -89,11 +91,22 @@ export const POLITIKALAR = [
     lisansGerekir: true,
     yetkiler: [...ONERILEN, ...YAZAR_YETKILERI],
   },
+  {
+    ad: 'Form servisi',
+    aciklama: 'İletişim formu servisinin anahtarı: yalnızca gelen mesajı oluşturur. Panele giremez, mesajları okuyamaz; lisans koltuğu saymaz.',
+    icon: 'mail',
+    enforce_tfa: false,
+    // Panel (uygulama) erisimi yok: Directus koltuk sayarken yalnizca app_access/admin_access'e bakar.
+    uygulamaErisimi: false,
+    // Alan kisitlamak ozel kural olurdu (lisans); servis yalnizca form alanlarini gonderir.
+    yetkiler: [{ collection: 'iletisim_mesaji', action: 'create', fields: ['*'] }],
+  },
 ];
 
 export const ROLLER = [
   { ad: 'Editör', politika: 'Editör', icon: 'edit_note' },
   { ad: 'Yazar', politika: 'Yazar', icon: 'history_edu', lisansGerekir: true },
+  { ad: 'Form servisi', politika: 'Form servisi', icon: 'mail' },
 ];
 
 // Directus'un ozel kural denetiminin kopyasi (ayni dosya, yukarida). Onerilen satirlar muaf.

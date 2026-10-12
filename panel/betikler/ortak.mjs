@@ -2,7 +2,7 @@
 // Bilerek yalnizca Node'un kendi modulleri: betikler macOS, Linux ve Windows'ta ayni calissin.
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -15,15 +15,34 @@ export const ENV_DOSYASI = join(PANEL, '.env');
 // .env'i (yoksa .env.ornek'ten) uretir; __RASTGELE__ yerlerine her biri icin ayri rastgele deger.
 // Kume (.veri) eski parolalarla durdugu halde .env silinmisse yeni parola uretmek baglantiyi bozar;
 // o durumda acik bir mesajla durur (kod incelemesi).
+// .env varsa, .env.ornek'e sonradan eklenmis anahtarlar (ornek: FORM_*) sona eklenir; var olan
+// degerlere dokunulmaz.
 export function envHazirla() {
-  if (existsSync(ENV_DOSYASI)) return false;
+  const ornek = readFileSync(join(PANEL, '.env.ornek'), 'utf8');
+  const rastgele = (s) => s.replace(/__RASTGELE__/g, () => randomBytes(18).toString('base64url'));
+  if (existsSync(ENV_DOSYASI)) {
+    const mevcut = envOku();
+    const eksik = ornek.split(/\r?\n/).filter((s) => /^[A-Z0-9_]+=/.test(s) && !(s.split('=')[0] in mevcut));
+    if (eksik.length) appendFileSync(ENV_DOSYASI, `\n# .env.ornek'ten sonradan eklenenler\n${rastgele(eksik.join('\n'))}\n`);
+    return false;
+  }
   if (existsSync(KUME)) {
     throw new Error('panel/.env yok ama panel/.veri (veritabani kumesi) duruyor; kume eski parolalari kullaniyor. '
       + 'Ya .env yedeginizi geri koyun ya da sifirdan baslamak icin once "npm run db:durdur" calistirip panel/.veri klasorunu silin.');
   }
-  const ornek = readFileSync(join(PANEL, '.env.ornek'), 'utf8');
-  writeFileSync(ENV_DOSYASI, ornek.replace(/__RASTGELE__/g, () => randomBytes(18).toString('base64url')));
+  writeFileSync(ENV_DOSYASI, rastgele(ornek));
   return true;
+}
+
+// Directus ayar dosyasini (CONFIG_PATH) verilen env'den uretir. Directus panel/.env'i surec ortam
+// degiskenlerinin onune koydugu icin test ortami (insa_test) ayri bir dosyayla calismali.
+// Burada (kur.mjs'de degil): sunucu.mjs kur.mjs'i ice aktarinca "npm run kur" dongusel ice aktarmada
+// takiliyordu (kur.mjs bitmeden sunucu.mjs'i bekliyor, o da kur.mjs'i; cikis 13).
+export function directusAyarDosyasi(env) {
+  mkdirSync(VERI, { recursive: true });
+  const dosya = join(VERI, `directus-${env.DB_DATABASE}.env`);
+  writeFileSync(dosya, Object.entries(env).map(([k, v]) => `${k}=${v}`).join('\n'));
+  return dosya;
 }
 
 // Basit .env okuyucu: ANAHTAR=deger satirlari; # ile baslayan satir yorum.

@@ -13,8 +13,8 @@
 |---|---|
 | R1 Unvan, uydurma alan adi, yer tutucu logo | bitti |
 | R2 Form bildirim e-postasi alani (veri modeli) | bitti |
-| R3 Form servisi | yapilmadi (sirada) |
-| R4 Bildirim akisi (e-posta) | yapilmadi |
+| R3 Form servisi | bitti |
+| R4 Bildirim akisi (e-posta) | yapilmadi (sirada) |
 | R5 Inceleme ve rapor | yapilmadi |
 
 ## Uygulanan kararlar (acik sorular)
@@ -77,10 +77,51 @@ Yerelde `cd panel && npm run sifirla` yeterli (bu yapildi).
 
 ---
 
+## R3 Form servisi
+
+**Ne:** Iletisim formu artik gercekten calisiyor. Ziyaretcinin mesaji panele "Gelen mesajlar"a duser; "Mesajiniz bize ulasti" ancak kayit veritabanina yazildiktan sonra gosterilir.
+
+**Nasil calisir (zincir):** tarayici -> `POST /api/iletisim` -> (canlida Caddy) -> form servisi `panel/form/sunucu.mjs` (127.0.0.1:8065) -> Directus REST -> PostgreSQL `iletisim_mesaji`.
+
+| Soru | Cevap |
+|---|---|
+| Neden Directus'a dogrudan (herkese acik izinle) yazilmiyor? | Hiz siniri, bal kupu, IP'nin HMAC'i ve telefonun E.164'e cevrilmesi sunucu tarafinda olmali; Directus'u internete form icin acmak da gerekmez. |
+| Servis Directus'a hangi yetkiyle yaziyor? | "Form servisi" rolu: yalnizca `iletisim_mesaji` olusturma. Mesaj okuyamaz, baska icerige dokunamaz, panele giremez (e-postasi ve parolasi yok; yalnizca `.env`'deki `FORM_DIRECTUS_TOKEN` anahtari). Panel erisimi olmadigi icin **lisans koltugu saymaz** (Directus kodunda dogrulandi, testli). |
+| Ek paket var mi? | Yok: node:http ve fetch. |
+| Spam'e karsi? | Bal kupu alani (`web_sitesi`; insan gormez, doluysa ret), IP basina 10 dakikada 5 deneme (`.env`'den degisir), baska sitenin sayfasindan gonderime ret (Origin denetimi), govde siniri 32 KB. |
+| KVKK | IP saklanmaz; yalnizca anahtarli HMAC-SHA256'si (`FORM_IP_ANAHTARI`). Servisin kayitlarina (log) kisisel veri yazilmaz, yalnizca durum kodu. Mesajlarin degisiklik gecmisi zaten kapali. Veri sunucudan disari cikmaz. |
+| Betik (JS) kapaliysa? | Form normal gonderilir; servis kucuk bir HTML sayfa dondurur (TR/EN, "Iletisim sayfasina don" baglantisi). |
+| Hata olursa ziyaretci ne gorur? | Gercek durum: alan hatasi (hangi alan), "cok fazla deneme", "su anda kaydedilemedi" ya da sunucuya ulasilamazsa "iletilemedi". Hicbirinde "gonderildi" yok. |
+
+**Site tarafi:** form artik `hidden` degil; "henuz devrede degil" notu kalkti; gizli `dil` ve bal kupu alanlari eklendi; `src/scripts/iletisim.ts` sunucunun yanitini gosterir, basarida formu temizler, gonderirken dugmeyi kilitler. Basari metni sitenin derlenmis HTML'inde yok, servisten gelir (cikti testi bunu her sayfada denetliyor). `astro.config.mjs`: yalnizca `astro dev`'de `/api` istegi yerel servise gider (derlenen siteye girmez).
+
+**Yeni ayarlar (`panel/.env.ornek`):** `FORM_DIRECTUS_TOKEN`, `FORM_IP_ANAHTARI` (rastgele uretilir), `FORM_HOST`, `FORM_PORT`, `FORM_IZINLI_KAYNAK`, `FORM_VEKIL_ARKASINDA`, `FORM_HIZ_ADET`, `FORM_HIZ_DAKIKA`. Var olan `.env`'e eksik anahtarlar kurulumda otomatik eklenir (var olan degerlere dokunulmaz).
+
+**Canli icin (sunucu kurulurken):**
+```
+# Caddyfile (site blogunun icine)
+handle /api/iletisim {
+	reverse_proxy 127.0.0.1:8065
+}
+```
+`.env`'de `FORM_VEKIL_ARKASINDA=evet` ve `FORM_IZINLI_KAYNAK=https://<alan adi>`; servis `npm run form` ile (systemd vb. altinda) calisir. Caddy disaridan gelen X-Forwarded-For'u yok sayip kendisi yazdigi icin servis IP'yi son degerden okur.
+
+**Yolda bulunan, onceden var olan iki hata (duzeltildi):**
+1. **`npm run kur` komut satirindan hic bitmiyordu** (cikis 13, "unsettled top-level await"): `sunucu.mjs` ile `kur.mjs` birbirini ice aktariyordu. Testler ve `npm run sifirla` fonksiyonlari dogrudan cagirdigi icin yakalanmamisti (panel-gece'deki `527ec7f`'ten beri). Ortak fonksiyon `ortak.mjs`'e tasindi; `npm run kur` yeniden calisiyor.
+2. **Panelde istege bagli bicimli alanlar bosaltilamiyordu:** Directus'un regex dogrulamasi bos degeri "zorunlu" sayiyordu. Editor ornegin "Form bildirim e-postasi"ni silip buro e-postasina donemiyor, faksi silemiyordu; form servisi de telefonsuz mesaji kaydedemiyordu (tarayiciyla canli denemede yakalandi). Bos birakilabilen alanlarda dogrulama artik "bos ya da kurala uygun"; zorunlu alanlarda degismedi.
+
+**Dogrulama:**
+- Panel testleri 64 (yeni 19: alan kurallari, servis uctan uca test Directus'una karsi, servis anahtarinin yetkileri, koltuk sayaci, alan bosaltma).
+- Site: check 0 hata; birim 245, cikti 71, e2e 158 (form testleri yeniden yazildi; servis `page.route` ile taklit, JS'siz gonderim dahil).
+- Elle: gelistirme paneli + servis + `astro dev` ile tarayicidan gercek gonderim; kayit veritabaninda dogru (telefon E.164, IP yalnizca HMAC). Deneme kayitlari silindi; sunucular ve kume kapatildi.
+
+---
+
 ## Commit aciklamalari
 
 - **R1 Unvan, alan adi, logo:** Resmi unvan (yer tutucu) ve uydurma alan adi `insahukuk.test` tek yerlerinde degisti; sitede ve panelde yer tutucu INSA logosu. Muvekkil/firma logosu testi buronun kendi logosunu dislayacak sekilde duzeltildi; panel testlerinin kapali kumede calismama hatasi giderildi.
 - **R2 Form bildirim e-postasi:** `site_ayar.form_bildirim_eposta` sutunu (CHECK'li, bos olabilir) eklendi; sema testi T17, beklenen cikti, TABLOLAR.md, veri modeli belgesi, site mock'u ve panel alani buna gore guncellendi. Adresin sitede gorunmedigi testli.
+- **R3 Form servisi:** `panel/form/` altinda ek paketsiz servis (dogrulama, telefon E.164, bal kupu, IP basina hiz siniri, Origin denetimi, IP'nin HMAC'i); Directus'a yalnizca mesaj olusturabilen, panele giremeyen ve koltuk saymayan "Form servisi" kullanicisiyla yazar. Sitenin formu artik etkin ve sunucunun gercek yanitini gosterir. Iki eski hata duzeltildi: `npm run kur`'un dongusel ice aktarmada takilmasi ve istege bagli bicimli alanlarin panelde bosaltilamamasi.
 
 ---
 
@@ -97,3 +138,7 @@ Yerelde `cd panel && npm run sifirla` yeterli (bu yapildi).
 | 7 | `git diff --cached --name-status` | Yalniz R2 dosyalari oldugunu kontrol etti. |
 | 8 | `git commit -m "Form bildirim e-postasi alanini ekle" -m "..."` | R2 commit'i. |
 | 9 | `git push origin unvan-form` | R2'yi uzaga gonderdi. |
+| 10 | `git add panel/... site/... docs/unvan-form-calismasi.md` (acik yollar) | R3 dosyalarini hazirlik alanina koydu. |
+| 11 | `git diff --cached --name-status` | Yalniz R3 dosyalari oldugunu kontrol etti. |
+| 12 | `git commit -m "Iletisim formu servisini ekle" -m "..."` | R3 commit'i. |
+| 13 | `git push origin unvan-form` | R3'u uzaga gonderdi. |

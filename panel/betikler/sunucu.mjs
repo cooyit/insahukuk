@@ -2,8 +2,7 @@
 // Kurulum betigi yapilandirmayi uygulamak icin, testler de ayri test ornegi icin kullanir.
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
-import { directusAyarDosyasi } from './kur.mjs';
-import { PANEL } from './ortak.mjs';
+import { directusAyarDosyasi, PANEL } from './ortak.mjs';
 
 export async function ayaktaMi(url) {
   try {

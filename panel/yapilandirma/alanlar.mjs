@@ -155,9 +155,12 @@ export function alanMeta(tablo, alan) {
       width: 'half',
     });
   }
+  // Bos birakilabilen alanda bos deger de gecerli: Directus _regex'i null'da "Value is required" diye
+  // reddediyordu (editor istege bagli telefonu ya da form bildirim adresini silemiyordu).
   for (const [kosul, { kural, mesaj }] of DOGRULAMA_KURALLARI) {
     if (kosul(tablo, a)) {
-      meta.validation = { _and: [{ [a]: { _regex: kural } }] };
+      const regex = { [a]: { _regex: kural } };
+      meta.validation = s.is_nullable === false ? { _and: [regex] } : { _or: [{ [a]: { _null: true } }, regex] };
       meta.validation_message = mesaj;
     }
   }
