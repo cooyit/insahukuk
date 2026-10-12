@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { alanMeta, OZEL } from '../yapilandirma/alanlar.mjs';
 import { BIRE_COK, CEVIRILER, COKA_COK } from '../yapilandirma/iliskiler.mjs';
 import { CEVIRI_SABLONLARI, KLASORLER, KOLEKSIYONLAR, META_ALMAYANLAR } from '../yapilandirma/koleksiyonlar.mjs';
+import { ozelKuralMi, POLITIKALAR, ROLLER } from '../yapilandirma/yetkiler.mjs';
 import { envOku } from './ortak.mjs';
 
 export async function baglan(url, eposta, sifre) {
@@ -197,6 +198,64 @@ async function listeleriUygula(api, rapor) {
   }
 }
 
+// --- roller ve yetkiler ---
+
+async function adlaBul(api, yol, ad) {
+  return (await api('GET', `${yol}?filter[name][_eq]=${encodeURIComponent(ad)}&limit=1`)).veri[0] ?? null;
+}
+
+async function politikaUygula(api, p) {
+  const govde = { name: p.ad, description: p.aciklama, icon: p.icon, admin_access: false, app_access: true, enforce_tfa: p.enforce_tfa };
+  const var_ = await adlaBul(api, '/policies', p.ad);
+  const politika = var_ ? (await api('PATCH', `/policies/${var_.id}`, govde)).veri : (await api('POST', '/policies', govde)).veri;
+  // Tekrar calistirilabilirlik: politikanin yetkileri silinip tanimdaki haliyle yeniden yazilir.
+  // Tam satir okunmali: "fields=id" ile Directus'un ozel kural suzgeci filtreli onerilen satirlari
+  // da gizliyor; onlar silinmeyip her calistirmada bir kez daha ekleniyordu (testte yakalandi).
+  const eski = (await api('GET', `/permissions?filter[policy][_eq]=${politika.id}&limit=-1`)).veri.map((x) => x.id);
+  if (eski.length) await api('DELETE', '/permissions', eski);
+  await api('POST', '/permissions', p.yetkiler.map((y) => ({
+    policy: politika.id,
+    collection: y.collection,
+    action: y.action,
+    fields: y.fields ?? null,
+    permissions: y.permissions ?? null,
+    validation: y.validation ?? null,
+    presets: y.presets ?? null,
+  })));
+  return politika.id;
+}
+
+async function rolUygula(api, r, politikaId) {
+  const var_ = await adlaBul(api, '/roles', r.ad);
+  const rol = var_ ? (await api('PATCH', `/roles/${var_.id}`, { name: r.ad, icon: r.icon })).veri : (await api('POST', '/roles', { name: r.ad, icon: r.icon })).veri;
+  const bag = (await api('GET', `/access?filter[role][_eq]=${rol.id}&filter[policy][_eq]=${politikaId}&limit=1`)).veri;
+  if (!bag.length) await api('POST', '/access', { role: rol.id, policy: politikaId });
+}
+
+async function yetkileriUygula(api, rapor) {
+  const ozelKuralSerbest = rapor.lisans.ozelYetkiKurali;
+  const politikaIdleri = new Map();
+  for (const p of POLITIKALAR) {
+    if (p.lisansGerekir && !ozelKuralSerbest) {
+      rapor.lisansBekleyenYetki.push(p.ad);
+      continue;
+    }
+    // Son guvence: lisanssizken ozel kural iceren tek satir bile kurulumu kilitler; gonderilmeden dur.
+    const ozel = p.yetkiler.filter(ozelKuralMi);
+    if (ozel.length && !ozelKuralSerbest) {
+      throw new Error(`${p.ad}: lisans ozel yetki kuralina izin vermiyor: ${ozel.map((y) => `${y.collection}.${y.action}`).join(', ')}`);
+    }
+    politikaIdleri.set(p.ad, await politikaUygula(api, p));
+    rapor.politikalar.push(p.ad);
+  }
+  for (const r of ROLLER) {
+    const politikaId = politikaIdleri.get(r.politika);
+    if (!politikaId) continue;
+    await rolUygula(api, r, politikaId);
+    rapor.roller.push(r.ad);
+  }
+}
+
 // --- genel ayarlar ---
 
 async function ayarlariUygula(api) {
@@ -209,12 +268,16 @@ async function ayarlariUygula(api) {
 
 export async function yapilandir(env) {
   const api = await baglan(env.PUBLIC_URL, env.ADMIN_EMAIL, env.ADMIN_PASSWORD);
-  const rapor = { koleksiyonlar: [], lisansBekleyen: [], alanSayisi: 0, iliskiSayisi: 0, lisans: null };
+  const rapor = {
+    koleksiyonlar: [], lisansBekleyen: [], alanSayisi: 0, iliskiSayisi: 0, lisans: null,
+    politikalar: [], roller: [], lisansBekleyenYetki: [],
+  };
   await ayarlariUygula(api);
   await koleksiyonlariUygula(api, rapor);
   await alanlariUygula(api, rapor);
   await iliskileriUygula(api, rapor);
   await listeleriUygula(api, rapor);
+  await yetkileriUygula(api, rapor);
   return rapor;
 }
 
@@ -223,4 +286,5 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   console.log(`Lisans: ${rapor.lisans.ad}; yapilandirilmis koleksiyon ${rapor.lisans.kullanilanKoleksiyon}/${rapor.lisans.koleksiyonSiniri === -1 ? 'sinirsiz' : rapor.lisans.koleksiyonSiniri}`);
   console.log(`Koleksiyon: ${rapor.koleksiyonlar.length}, alan: ${rapor.alanSayisi}, iliski: ${rapor.iliskiSayisi}`);
   if (rapor.lisansBekleyen.length) console.log(`Lisans bekleyen koleksiyonlar: ${rapor.lisansBekleyen.join(', ')}`);
+  console.log(`Roller: ${rapor.roller.join(', ') || '-'}${rapor.lisansBekleyenYetki.length ? `; lisans bekleyen: ${rapor.lisansBekleyenYetki.join(', ')}` : ''}`);
 }

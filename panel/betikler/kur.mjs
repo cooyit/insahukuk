@@ -91,5 +91,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const sinir = rapor.lisans.koleksiyonSiniri === -1 ? 'sinirsiz' : rapor.lisans.koleksiyonSiniri;
   console.log(`Yapilandirma: lisans ${rapor.lisans.ad}, koleksiyon ${rapor.lisans.kullanilanKoleksiyon}/${sinir}, alan ${rapor.alanSayisi}, iliski ${rapor.iliskiSayisi}`);
   if (rapor.lisansBekleyen.length) console.log(`Lisans bekleyen koleksiyonlar: ${rapor.lisansBekleyen.join(', ')}`);
+  console.log(`Roller: ${rapor.roller.join(', ') || '-'}${rapor.lisansBekleyenYetki.length ? `; lisans bekleyen: ${rapor.lisansBekleyenYetki.join(', ')}` : ''}`);
   console.log(`Paneli baslatmak icin: npm run panel  (${env.PUBLIC_URL})`);
 }

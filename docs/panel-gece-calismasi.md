@@ -16,8 +16,8 @@
 | Q0 Hazirlik | bitti |
 | Q1 Yerel kurulum (PostgreSQL 16 + Directus 12.5) | bitti |
 | Q2 Koleksiyon ve alan yapilandirmasi | bitti |
-| Q3 Roller ve yetkiler | yapilmadi (sirada) |
-| Q4 Akislar ve otomatik alanlar | yapilmadi |
+| Q3 Roller ve yetkiler | bitti (Yazar rolu lisans bekliyor) |
+| Q4 Akislar ve otomatik alanlar | yapilmadi (sirada) |
 | Q5 Son gozden gecirme ve rapor | yapilmadi |
 
 ---
@@ -169,6 +169,36 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 
 ---
 
+## Q3 Roller ve yetkiler
+
+**Baslamadan once**
+1. Kaynak: `db/VERI_MODELI.md` bolum 6.5 ("Yazar" yalnizca kendi kisi kaydini ve yayinlarini duzenler, `durum`'u `yayinda` yapamaz), bolum 4 (yayin onayi sorusu); `docs/inceleme` 4.3 (zorunlu TOTP 2FA, rol ve kayit duzeyinde yetki).
+2. En basit yol: rol -> politika -> yetki satirlari, uygulayicida tek fonksiyon; politika ve rol adla bulunur, satirlar her calistirmada yeniden yazilir.
+3. Yapmazsam: avukatlarin hepsi yonetici olur (kullanici ve sistem ayarlarini degistirebilir).
+4. Uyum: lisanssiz katmanda yasak olan kural asla gonderilmez (kilitlenme riski); 2FA zorunlu.
+
+**Ne:**
+- `panel/yapilandirma/yetkiler.mjs`:
+  - **Yonetici:** Directus'un hazir Administrator rolu (ilk kullanici).
+  - **Editor** (uygulandi): 14 icerik koleksiyonu ve 22 ceviri/ara tabloda tam erisim; sabit sayfa yalniz okuma/guncelleme (anahtarlari sitenin kodu kullanir); dil yalniz okuma; iletisim mesaji okuma/guncelleme/silme (olusturamaz); yayimlama isi okuma/olusturma. Directus'un "onerilen" uygulama yetkilerinden dosyalar, klasorler, yorumlar, kullanici (kendi profili), roller ve elle tetiklenen akislar. Paylasim baglantilari ve panolar bilerek yok. Iki adimli dogrulama (TOTP) zorunlu.
+  - **Yazar** (tanimli, **lisans bekliyor**, denenmedi): okuma serbest; yalniz `kisi.kullanici = kendisi` olan profili ve yazari oldugu yayinlari duzenler; yayin olustururken ve guncellerken `durum` yalniz taslak/incelemede olabilir.
+- `ozelKuralMi()`: Directus'un ozel kural denetiminin kopyasi. Lisans izin vermiyorsa uygulayici ozel kurali olan politikayi atlar; atlanmasi gerekmeyen bir politikada ozel kural bulursa **hicbir sey gondermeden durur**.
+
+**Nasil:**
+- "Onerilen" satirlar elle kopyalanmiyor, Directus'un kendi paketinden (`@directus/system-data`) okunuyor: muafiyet birebir esitlikle denetlendigi icin kopya, surum farkinda paneli kilitleyebilirdi.
+- **Bulunan hata (testte):** yetki satirlari `fields=id` ile okununca Directus'un ozel kural suzgeci filtreli "onerilen" satirlari gizliyordu. Uygulayici yeniden calistirmada bu 5 satiri silemiyor ve her seferinde tekrar ekliyordu (147 yerine 152 satir). Cozum: satirlar tam okunuyor; test sayiyi denetliyor.
+- 2FA zorunlu olsa da API girisi OTP istemeden calisti; panel ilk giriste 2FA kurulumunu zorunlu tutar (testte API kullanildi).
+- Lisanssiz katmanda en fazla 3 panel kullanicisi: yonetici + 2 editor.
+
+**Mimarideki yeri:** `yapilandir.mjs` -> `/policies`, `/permissions`, `/roles`, `/access` -> `directus_policies`, `directus_permissions`, `directus_roles`, `directus_access`.
+
+**Testler (Q3):**
+| Test | Korudugu kural |
+|---|---|
+| `yetkiler.test.mjs` (12) | Ozel kural denetimi Directus ile ayni (ornekler); Editor'de ozel kural yok; Yazar ozel kural iceriyor ve lisans istiyor; lisanssiz kurulumda Editor uygulandi, Yazar bekliyor, kurulum kilitlenmedi; Editor politikasi 2FA zorunlu ve butun satirlari gecerli (gizlenen yok); gercek editor kullanicisi yayin + ceviri olusturur, kisinin telefonunu ic ice gunceller, site ayarini gunceller, mesaji okur ama olusturamaz, sabit sayfa acamaz, kullanici/rol/ayar/koleksiyon olusturamaz, dili degistiremez |
+
+---
+
 ## Kararlar tablosu
 
 | # | Karar | Gerekce | Kim karar verdi | Plandan sapma mi |
@@ -186,6 +216,11 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 | L11 | Proje sahibi (MSCL) penceresi doldurulmadi | Lisans sartlarini kabul buronun karari | ben karar verdim | hayir |
 | L12 | Panel adi "Buro Yonetim Paneli" (unvan degil) | Unvan henuz belli degil (inceleme bolum 7) | ben karar verdim | hayir |
 | L13 | `npm run kur` yapilandirmayi da uygular; Directus'u gecici acar | Tek komut; Directus yeni tablolari ancak acilista gorur | ben karar verdim | hayir |
+| L14 | Yonetici = Directus Administrator; Editor ve Yazar ayri roller | VERI_MODELI 6.5 ve Excel'deki roller | ben karar verdim | hayir |
+| L15 | Yazar rolu lisans gelene kadar uygulanmaz | Filtre ister; lisanssiz uygulanirsa kurulum kilitlenir | ben karar verdim | **evet** (gorevin istedigi yazar kurali bu gece calismiyor) |
+| L16 | Editor icin 2FA zorunlu | inceleme 4.3 | ben karar verdim | hayir |
+| L17 | Paylasim baglantilari (shares) ve panolar editorde yok | Paylasim icerigi giris yapmadan disariya acar; panolar kullanilmiyor | ben karar verdim | hayir |
+| L18 | Editor sabit sayfa acamaz/silemez | Anahtarlari sitenin kodu kullanir | ben karar verdim | hayir |
 
 ---
 
@@ -205,6 +240,7 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 |---|---|---|
 | Q1 | 5/5 | `db/test/calistir.sh` (PG16, `LC_ALL=C`) iki yerelde TAMAM |
 | Q2 | 21/21 | Gelistirme ornegi `npm run sifirla` ile temizlendi (sabahki deney artiklari gitti) |
+| Q3 | 33/33 | |
 
 **Bozarak dogrulanan:**
 | Test | Nasil bozuldu | Sonuc |
@@ -213,7 +249,10 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 | `yapilandirma.test.mjs` (KVKK degisiklik kaydi) | `iletisim_mesaji` `accountability: 'all'` | kirmizi, geri alindi |
 | `yapilandirma.test.mjs` (lisans plani) | Sinir karsilastirmasi bir fazla sayacak sekilde bozuldu | kirmizi, geri alindi |
 
-- Son dogrulama: Q2 sonu, 12 Ekim 2026 (Europe/Istanbul): panel testleri 21/21 yesil.
+| `yetkiler.test.mjs` + uygulayici korumasi | Editor'e filtreli bir `kisi.read` satiri eklendi | uygulayici hicbir sey gondermeden "lisans ozel yetki kuralina izin vermiyor: kisi.read" ile durdu (test kurulumu kirmizi), geri alindi |
+| `yetkiler.test.mjs` (sabit sayfa) | Editor'e `sayfa` icin tum eylemler verildi | kirmizi, geri alindi |
+
+- Son dogrulama: Q3 sonu, 12 Ekim 2026 (Europe/Istanbul): panel testleri 33/33 yesil.
 
 ---
 
@@ -222,6 +261,7 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 - **Q0 Hazirlik:** Panel calismasinin ilerleme belgesi acildi: cerceve, lisans siniri, acik sorular, plan, ortam ve uyandirma duzeltmesi.
 - **Q1 Yerel kurulum:** `panel/` altinda Directus 12.5.0, projeye ozel PostgreSQL 16 kumesi ve tek komutluk kurulum betigi; AI/MCP kapali. Test ortami her calistirmada sifirdan kuruluyor. Lisans sinirlari kaynak koddan cikarilip belgeye yazildi.
 - **Q2 Koleksiyon ve alan yapilandirmasi:** Panel kod olarak yapilandirildi: Turkce menu ve klasorler, 14 ana koleksiyon, 266 alanin Turkce etiketi/arayuzu/dogrulamasi, 25 ceviri ve iliski alani, varsayilan listeler. Lisans kotasi hesaplanarak uygulaniyor; ceviri ve ara tablolar kotaya girmiyor. `npm run kur` tek komutta kurup yapilandiriyor.
+- **Q3 Roller ve yetkiler:** Editor rolu (icerikte tam erisim, sistemde erisim yok, 2FA zorunlu) uygulandi; Yazar rolu (yalniz kendi icerigi, yayina alamaz) tanimlandi ama lisans bekliyor. Lisanssizken paneli kilitleyecek kural gonderilmeden duruluyor. Yeniden calistirmada yetki satirlarinin cogalmasi hatasi testte bulunup duzeltildi.
 
 ---
 
@@ -243,3 +283,7 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 | 12 | `git diff --cached --name-status` | Hazirlik alaninda yalniz Q2 dosyalari oldugunu kontrol etti. |
 | 13 | `git commit -m "Panel yapilandirmasini kod olarak ekle" -m "..."` | Q2 commit'i. |
 | 14 | `git push origin panel-gece` | Q2'yi uzaga gonderdi. |
+| 15 | `git add docs/panel-gece-calismasi.md panel/betikler panel/yapilandirma panel/test` | Q3 dosyalarini acik yollarla hazirlik alanina koydu. |
+| 16 | `git diff --cached --name-status` | Hazirlik alaninda yalniz Q3 dosyalari oldugunu kontrol etti. |
+| 17 | `git commit -m "Editor ve yazar rollerini ekle" -m "..."` | Q3 commit'i. |
+| 18 | `git push origin panel-gece` | Q3'u uzaga gonderdi. |
