@@ -9,7 +9,15 @@
 //   - Yazar: "yalnizca kendi kaydi, yayina alamaz" filtre ister; YALNIZCA lisans ozel kurala izin
 //     veriyorsa uygulanir. Bu gece lisans olmadigi icin uygulanmadi ve denenmedi.
 // Yonetici: Directus'un hazir "Administrator" rolu (bootstrap'in actigi ilk kullanici).
-import { appRecommendedPermissions } from '@directus/system-data';
+import { createRequire } from 'node:module';
+
+// "Onerilen" yetkiler, sunucunun (directus -> @directus/api) KULLANDIGI @directus/system-data
+// kopyasindan okunur. Dogrudan import, npm'in paketi en uste tasimasina guvenirdi; ileride
+// @directus/api baska surum isterse ust kopya eskir ve muafiyet denetimi sunucuyla ayrisirdi
+// (kod incelemesi). Zincir: bu dosya -> directus -> @directus/api -> @directus/system-data.
+const directusIcin = createRequire(createRequire(import.meta.url).resolve('directus/package.json'));
+const apiIcin = createRequire(directusIcin.resolve('@directus/api/package.json'));
+const { appRecommendedPermissions } = apiIcin('@directus/system-data');
 
 // Directus'un "onerilen" uygulama yetkilerinden kullandiklarimiz. Kopyalanmaz, Directus'un kendi
 // paketinden okunur: muafiyet birebir esitlikle denetlendigi icin kopya surum farkinda kilitlenirdi.

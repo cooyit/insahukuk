@@ -80,12 +80,16 @@ async function koleksiyonlariUygula(api, rapor) {
     else await api('POST', '/collections', { collection: k.collection, schema: null, meta });
   }
 
-  const yapilandirilmis = new Set([...mevcut.values()].filter((c) => c.meta != null).map((c) => c.collection));
-  const plan = sinirPlani(KOLEKSIYONLAR.map((k) => k.collection), yapilandirilmis, sinir, lisans.usage.collections);
+  // Directus yalnizca durumu "active" olani sayar; lisans asiminda pasiflestirilmis (inactive)
+  // koleksiyon sayilmaz, yeniden acilmasi gerekir.
+  const aktif = new Set([...mevcut.values()].filter((c) => c.meta && c.meta.status === 'active').map((c) => c.collection));
+  const plan = sinirPlani(KOLEKSIYONLAR.map((k) => k.collection), aktif, sinir, lisans.usage.collections);
   for (const k of KOLEKSIYONLAR.filter((x) => plan.uygula.includes(x.collection))) {
-    // "status" bilerek gonderilmez: Directus status:"active" iceren her guncellemeyi sayaca +1
-    // olarak denetliyor; sinirdayken zaten aktif bir koleksiyonun guncellemesi de reddedilirdi.
-    await api('PATCH', `/collections/${k.collection}`, { meta: koleksiyonMeta(k) });
+    // Aktif koleksiyonda "status" bilerek gonderilmez: Directus status:"active" iceren her guncellemeyi
+    // sayaca +1 olarak denetliyor; sinirdayken zaten aktif olanin guncellemesi de reddedilirdi.
+    // Aktif olmayan (yeni ya da pasif) icin gonderilir: plan onu zaten sayaca ekledi.
+    const meta = aktif.has(k.collection) ? koleksiyonMeta(k) : { ...koleksiyonMeta(k), status: 'active' };
+    await api('PATCH', `/collections/${k.collection}`, { meta });
     rapor.koleksiyonlar.push(k.collection);
   }
   rapor.lisansBekleyen.push(...plan.bekleyen);
@@ -209,11 +213,11 @@ async function politikaUygula(api, p) {
   const govde = { name: p.ad, description: p.aciklama, icon: p.icon, admin_access: false, app_access: true, enforce_tfa: p.enforce_tfa };
   const var_ = await adlaBul(api, '/policies', p.ad);
   const politika = var_ ? (await api('PATCH', `/policies/${var_.id}`, govde)).veri : (await api('POST', '/policies', govde)).veri;
-  // Tekrar calistirilabilirlik: politikanin yetkileri silinip tanimdaki haliyle yeniden yazilir.
+  // Tekrar calistirilabilirlik: politikanin yetkileri tanimdaki haliyle yeniden yazilir. Once yeniler
+  // eklenir, sonra eskiler silinir: ekleme basarisiz olursa editor yetkisiz kalmaz (kod incelemesi).
   // Tam satir okunmali: "fields=id" ile Directus'un ozel kural suzgeci filtreli onerilen satirlari
   // da gizliyor; onlar silinmeyip her calistirmada bir kez daha ekleniyordu (testte yakalandi).
   const eski = (await api('GET', `/permissions?filter[policy][_eq]=${politika.id}&limit=-1`)).veri.map((x) => x.id);
-  if (eski.length) await api('DELETE', '/permissions', eski);
   await api('POST', '/permissions', p.yetkiler.map((y) => ({
     policy: politika.id,
     collection: y.collection,
@@ -223,6 +227,7 @@ async function politikaUygula(api, p) {
     validation: y.validation ?? null,
     presets: y.presets ?? null,
   })));
+  if (eski.length) await api('DELETE', '/permissions', eski);
   return politika.id;
 }
 
@@ -269,8 +274,11 @@ async function akislariUygula(api, rapor) {
     const var_ = mevcut.find((x) => x.name === a.ad);
     let akis;
     if (var_) {
-      // "status" bilerek gonderilmez: aktif akisi status:"active" ile guncellemek sayaca +1 diye denetlenir.
-      akis = (await api('PATCH', `/flows/${var_.id}`, { ...govde, operation: null })).veri;
+      // Aktif akista "status" bilerek gonderilmez (sayac +1 denetimi). Pasif akis (elle kapatilmis ya da
+      // lisans asiminda pasiflestirilmis) yeniden acilir; plan onu zaten sayaca ekledi. Kapali kalan
+      // onay akisi editorun yayina almasini engellerdi (kod incelemesi).
+      const durum = aktif.has(a.ad) ? {} : { status: 'active' };
+      akis = (await api('PATCH', `/flows/${var_.id}`, { ...govde, ...durum, operation: null })).veri;
       const eski = var_.operations.map((o) => o.id);
       if (eski.length) await api('DELETE', '/operations', eski);
     } else {
@@ -309,10 +317,19 @@ export async function yapilandir(env) {
   return rapor;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const rapor = await yapilandir(envOku());
-  console.log(`Lisans: ${rapor.lisans.ad}; yapilandirilmis koleksiyon ${rapor.lisans.kullanilanKoleksiyon}/${rapor.lisans.koleksiyonSiniri === -1 ? 'sinirsiz' : rapor.lisans.koleksiyonSiniri}`);
-  console.log(`Koleksiyon: ${rapor.koleksiyonlar.length}, alan: ${rapor.alanSayisi}, iliski: ${rapor.iliskiSayisi}`);
+// Kurulum ve yapilandirma komutlarinin ortak ozeti. Lisans yuzunden atlanan akis bir UYARI'dir:
+// onay akisi olmadan editor yayina alamaz.
+export function raporuYaz(rapor) {
+  const sinir = rapor.lisans.koleksiyonSiniri === -1 ? 'sinirsiz' : rapor.lisans.koleksiyonSiniri;
+  console.log(`Lisans: ${rapor.lisans.ad}; koleksiyon ${rapor.lisans.kullanilanKoleksiyon}/${sinir}, alan ${rapor.alanSayisi}, iliski ${rapor.iliskiSayisi}`);
   if (rapor.lisansBekleyen.length) console.log(`Lisans bekleyen koleksiyonlar: ${rapor.lisansBekleyen.join(', ')}`);
   console.log(`Roller: ${rapor.roller.join(', ') || '-'}${rapor.lisansBekleyenYetki.length ? `; lisans bekleyen: ${rapor.lisansBekleyenYetki.join(', ')}` : ''}`);
+  console.log(`Akislar: ${rapor.akislar.join(', ') || '-'}`);
+  if (rapor.lisansBekleyenAkis.length) {
+    console.warn(`UYARI: lisans siniri yuzunden kurulmayan akislar: ${rapor.lisansBekleyenAkis.join(', ')}. Bunlar olmadan yayina alma veritabani hatasi verir.`);
+  }
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  raporuYaz(await yapilandir(envOku()));
 }

@@ -9,7 +9,7 @@
 
 ## Sabah ozeti
 
-> Is bittikce guncellenir; son hali son pakette yazilir.
+### 1. Durum
 
 | Paket | Durum |
 |---|---|
@@ -18,7 +18,89 @@
 | Q2 Koleksiyon ve alan yapilandirmasi | bitti |
 | Q3 Roller ve yetkiler | bitti (Yazar rolu lisans bekliyor) |
 | Q4 Akislar ve otomatik alanlar | bitti |
-| Q5 Son gozden gecirme ve rapor | yapilmadi (sirada) |
+| Q5 Son gozden gecirme ve rapor | bitti |
+
+**En onemli bulgu:** Directus 12'nin lisanssiz katmani bu proje icin kalici olarak yetmez. Yazar rolu ("yalniz kendi icerigi") kurulamiyor, telemetri kapatilamiyor, en fazla 3 panel kullanicisi var. Ucretsiz Open Innovation Grant anahtarina **buro adina basvurulmasi** siradaki en onemli is (inceleme 4.3'teki "devam/dur kapisi"). Panel o zamana kadar yonetici + 2 editorle tam calisir durumda.
+
+### 2. Nasil calistirilir
+
+```
+cd panel
+npm ci
+npm run kur        # .env uretir (parolalar rastgele), PostgreSQL kumesini acar, Directus + sema + ornek veri + yapilandirma
+npm run panel      # http://localhost:8055  giris: panel/.env icindeki ADMIN_EMAIL / ADMIN_PASSWORD
+npm test           # ayri test veritabani ve ayri Directus ile; 40 test
+```
+
+Gereken: Node >= 22.12 ve PostgreSQL 16 programlari (sunucu `panel/.veri`'de acilir). macOS: `brew install postgresql@16`. Windows: PostgreSQL 16 kurulum paketi; `.env`'de `PG_BIN=C:\Program Files\PostgreSQL\16\bin`. Ilk giriste Directus "lisans anahtari" ve "proje sahibi" pencerelerini acar: ilki "Skip", ikincisi "Remind Later" (bkz. acik soru P6).
+
+### 3. Kararlar
+
+Butun kararlar asagidaki "Kararlar tablosu"nda (L1-L22; hepsi "ben karar verdim"). **Plandan sapmalar:** L3 (uyandirma 12:35), L15 (Yazar rolu bu gece uygulanmadi; lisans gerekiyor).
+
+### 4. Acik sorular (sizin icin)
+
+| # | Soru | Secenekler ve sonuclari | Gece uygulanan |
+|---|---|---|---|
+| P5 | Directus lisansi | a) Buro adina Open Innovation Grant basvurusu (yillik ciro < 5 M$, < 50 calisan) **(onerilen)**: Yazar rolu, telemetri kapatma, sinirsiz koleksiyon/kullanici. Anahtar `PUBLIC_URL`'e bagli, 5 aktivasyon, 12 saatte bir cevrimici dogrulama ; b) Lisanssiz devam: yonetici + 2 editor, avukat bazli yetki yok, telemetri acik ; c) Payload 3'e gecis (inceleme 4.4): lisans yok ama panel yeniden yazilir | b (gecici) |
+| P6 | Directus "proje sahibi" e-postasi | MSCL lisans sartlarinin ve veri isleme sozlesmesinin kabulu; bir kisinin e-postasi Directus'a gider. Buro yetkilisi karar vermeli | doldurulmadi |
+| P7 | Editor kac kisi? | Lisanssiz en fazla 2 editor (+1 yonetici) | test icin 1 |
+| P8 | Yayin onayi: editor dogrudan yayina alabilsin mi? | a) Evet, editor yayinlar; yazar (lisansla) yalniz incelemeye gonderir **(onerilen)** ; b) Yalniz yonetici yayinlar: editorun `durum` alanini kisitlamak ozel kural ister (lisans) | a |
+
+(P1-P4 asagida "Q0 Genel cerceve"de; uygulandilar.)
+
+### 5. En onemli kararlar (Kural 7 sablonu)
+
+**Soru:** Neden 36 tablonun yalnizca 14'u panelde "yapilandirildi"?
+**Cevap:** Lisanssiz Directus en fazla 25 yapilandirilmis koleksiyona izin veriyor; ceviri ve ara tablolari meta vermeden, ana kaydin formu icinden duzenlemek mumkun (denendi).
+**Basit anlatim:** Bir otoparkta 25 abonelik kartiniz var. Her arabaya kart vermek yerine, yalnizca kapidan giren arabalara kart verdik; yedek lastikler (ceviriler) arabanin icinde zaten geliyor.
+**Neden:** 25 asilirsa Directus kurulumu kilitler (icerik API'si kapanir, editorler giremez).
+**Oneri 1 (onerilen, uygulandi):** 14 ana koleksiyon + meta'siz ceviri/ara tablolar | Yarari: 11 yer bos kalir (moduller icin) | Riski: Directus ileride meta'siz tablolari baska turlu ele alirsa yeniden bakmak gerekir.
+**Oneri 2:** Lisansla hepsini yapilandirmak | Yarari: her tablo ayri menude de acilabilir | Riski: lisans sarti.
+
+**Soru:** Yapilandirma neden elle panelden degil kodla yapiliyor?
+**Cevap:** Ayni paneli her makinede (sizin bilgisayariniz, test, canli sunucu) tek komutla ve ayni bicimde kurmak icin.
+**Basit anlatim:** Yemegi goz karariyla degil tarifle yapmak; tarif defterde durur, herkes ayni yemegi yapar.
+**Neden:** Elle yapilan ayar belgelenmez, canliya tasinirken unutulur; kodda olan ayar test edilir.
+**Oneri 1 (onerilen, uygulandi):** `panel/yapilandirma/*.mjs` + `npm run yapilandir` | Riski: panelden elle yapilan degisiklik bir sonraki `yapilandir`'da ezilir; kalici degisiklik koda yazilmali.
+**Oneri 2:** Directus `schema snapshot` YAML'i | Yarari: Directus'un kendi araci | Riski: binlerce satir, yetkiler ve lisans hesabi icinde yok.
+
+**Soru:** Onay zamani neden otomatik doluyor?
+**Cevap:** Veritabani "yayinda" bir kaydin onay zamanini zorunlu tutuyor; editorun bunu elle yazmasi hem zahmetli hem yanlislik kaynagi.
+**Basit anlatim:** Kapidan gecen herkesin saatini bekci deftere kendisi yaziyor; gecen kisi yazmak zorunda kalmiyor.
+**Neden:** Akis olmadan editor panelden hic yayina alamazdi (alan salt okunur, veritabani zorunlu).
+**Oneri 1 (onerilen, uygulandi):** Directus akisi (3 akis, sinir 5) | Riski: akis kapatilirsa yayina alma veritabani hatasi verir.
+**Oneri 2:** Veritabani tetikleyicisi | Yarari: Directus'tan bagimsiz | Riski: `db/` degisikligi; ayrica onaylayan kullaniciyi veritabani bilmez.
+
+**Soru:** Lisans yokken kilitlenmeyi nasil onluyoruz?
+**Cevap:** Uygulayici once `/license`'i okur; koleksiyon ve akis kotasini hesaplayarak uygular; ozel yetki kurali iceren satiri lisans izin vermiyorsa hic gondermez, gerekirse durur.
+**Basit anlatim:** Asansorde "en fazla 8 kisi" yaziyorsa, bindirmeden once sayiyoruz.
+**Neden:** Kilitlenen kurulumu acmak icin yonetici `POST /license/resolve` ile fazlalari pasiflestirmek zorunda kalir.
+**Oneri (uygulandi):** `sinirPlani()` ve `ozelKuralMi()`; ikisi de testli ve bozarak dogrulandi.
+
+### 6. Bu kodu nasil okurum
+
+1. `panel/README.md`: komutlar.
+2. `panel/yapilandirma/`: panelin "ne" oldugu. Sirayla `koleksiyonlar.mjs` (menu), `alanlar.mjs` (form alanlari ve kurallar), `iliskiler.mjs` (ceviri ve listeler), `yetkiler.mjs` (roller), `akislar.mjs` (otomasyon).
+3. `panel/betikler/yapilandir.mjs`: "nasil" uygulandigi. `yapilandir()` fonksiyonundan basla; adimlar sirayla: ayarlar -> koleksiyonlar -> alanlar -> iliskiler -> listeler -> yetkiler -> akislar.
+4. `panel/betikler/kur.mjs`: kurulum sirasi (veritabani -> bootstrap -> sema -> gecici Directus -> yapilandirma).
+5. Testler `panel/test/`: `hazirlik.mjs` test ortamini kurar; her `*.test.mjs`'nin `describe` basligi korudugu kural.
+
+### 7. Veri modeli onerileri ve kapsam disi
+
+Asagida ilgili bolumlerde.
+
+### 8. Dogrulama
+
+Asagidaki "Dogrulama" bolumu: paket paket test sayilari, bozarak dogrulananlar, "Son dogrulama" satiri.
+
+### 9. Calistirilan git komutlari
+
+Belgenin sonunda.
+
+### 10. Yoneticiye ozet
+
+Buronun icerik yonetim paneli kuruldu ve Turkce calisiyor: ekip, yayinlar, kararlar, sayfalar, site bilgileri ve gelen mesajlar tek yerden yonetiliyor; yayina alma, onay kaydi ve anonimlestirme isaretleri otomatik. Kurulum tek komutla yapiliyor ve 44 otomatik testle denetleniyor. Bagimsiz bir inceleme 10 sorun buldu, hepsi giderildi. Ucretsiz surumun sinirlari (en fazla 3 panel kullanicisi, avukat bazli yetki yok, kullanim verisinin uretici firmaya gitmesi) nedeniyle buro adina ucretsiz lisans basvurusu yapilmasi gerekiyor; panel o zamana kadar yonetici ve iki editorle calisir.
 
 ---
 
@@ -208,7 +290,7 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 4. Uyum: lisanssiz katmanda en fazla 5 aktif akis var; 3 akis kuruldu.
 
 **Ne:** `panel/yapilandirma/akislar.mjs`
-1. **Yayin onayi** (engelleyici, yayin olustur/guncelle): yukte `durum = yayinda` var ve onay zamani yoksa `onay_zamani = simdi`, `onaylayan = islemi yapan` olarak doldurulur.
+1. **Yayin onayi** (engelleyici, yayin olustur/guncelle): istemcinin gonderdigi `onay_zamani`/`onaylayan` her zaman silinir; yukte `durum = yayinda` varsa `onay_zamani = simdi`, `onaylayan = islemi yapan` yazilir (Q5 incelemesinden sonra; once "bossa doldur" idi ve sahtelenebiliyordu).
 2. **Karar onayi ve anonimlestirme** (engelleyici, karar): ayni onay mantigi. "Anonimlestirildi" isaretlenince `anonimlestirme_zamani` ve `anonimlestiren` dolar; isaret kaldirilinca ikisi temizlenir. Isareti akis kendisi koymaz.
 3. **Yayimla** (elle, onay sorar): `derleme_isi`'ne `durum = kuyrukta`, `isteyen = basan kullanici` satiri ekler. Kuyrugu isleyip siteyi derleyen sunucu gorevi bu calismanin kapsami disi.
 - `olusturan`/`guncelleyen` ve olusturma/guncelleme zamani Q2'de ozel alan olarak tanimlandi (Directus doldurur). Karar anonimlestirme zamani artik formda salt okunur.
@@ -228,6 +310,27 @@ Dun gece kurdugum 05:35 uyandirmasi **yanlis gune kurulmustu** (`35 5 13 10 *` =
 | `akislar.test.mjs` (7) | Uc akis aktif, sayac dogru, kurulum kilitlenmedi; yeniden calistirmada akis/islem cogalmaz; yalniz durum degisince onay bilgisi dolar ve kayit kabul edilir; taslakta dolmaz; karar isaretlenince zaman/kisi dolar ve yayina alinir, kaldirilinca temizlenir; anonimlestirilmeden yayina alma reddedilir; editor "Yayimla" ile kuyruga kendi adina is ekler |
 
 Ekran goruntusunde yayin listesinin yan panelinde "Akislar" bolumu ve "Yayimla" dugmesi goruldu.
+
+---
+
+## Q5 Son gozden gecirme
+
+**Ne:** `code-review` becerisi (seviye: high) bu dalin panel farki uzerinde calistirildi: `ebdb1a4...HEAD`. 10 bulgu geldi; hepsi kodla karsilastirildi ve **hepsi gercek** cikti.
+
+| # | Bulgu | Ne yapildi | Test |
+|---|---|---|---|
+| 1 | Pasif (elle ya da lisans asiminda kapatilmis) akis yeniden calistirmada "uygulandi" sayiliyor ama acilmiyordu; onay akisi kapali kalirsa editor yayina alamaz | Pasif akis sayaca eklenip `status: active` ile aciliyor | `akislar.test.mjs` "kapatilan onay akisi ... yeniden aktif" |
+| 2 | "Panel acik" kontrolu sema yuklendikten sonra yapiliyordu; ikinci `npm run kur` kontrolu atliyordu | Kontrol sema yuklenmeden once; panel acik ve sema yoksa dur | (elle senaryo; betik okunarak dogrulandi) |
+| 3 | **Onay ve anonimlestirme bilgisi sahtelenebiliyordu**: akis yalniz bos alani dolduruyordu, editor istedigi zamani/onaylayani gonderebiliyordu | Akis istemcinin gonderdigi degerleri siliyor ve her zaman kendisi yaziyor | `akislar.test.mjs` "sahtelenemez" (3 test) |
+| 4 | Windows'ta `unix_socket_directories=''` tek tirnaklar cmd.exe'de harf sayilip PostgreSQL acilmazdi | Tirnaksiz bos deger; macOS'ta yeniden baslatilip yalniz 127.0.0.1'i dinledigi gunlukten dogrulandi | Windows'ta denenmedi |
+| 5 | `.env` silinip kume kalinca yeni parolalar eski kumeyle uyusmuyordu | `envHazirla` acik bir mesajla duruyor (ya .env'i geri koy ya .veri'yi sil) | (elle senaryo) |
+| 6 | Sema yuklendi ama ornek veri hata verdiyse bir daha yuklenmiyordu | Sema ve ornek veri ayri ayri denetleniyor | (elle senaryo) |
+| 7 | Yetkiler once silinip sonra ekleniyordu; ekleme basarisizsa editor yetkisiz kalirdi | Once yeniler ekleniyor, sonra eskiler siliniyor | mevcut "satirlarin hepsi gecerli" testi (cogalma yok) |
+| 8 | Pasif koleksiyon "yapilandirilmis" sayilip yeniden acilmiyordu, sayac yanlis raporlaniyordu | Yalniz `status = active` sayiliyor; pasif olan `status: active` ile aciliyor | `akislar.test.mjs` ayni testte `yonlendirme` |
+| 9 | Lisans yuzunden atlanan akis raporlanmiyordu | `raporuYaz()` UYARI basiyor; iki komut ayni ozeti kullaniyor | - |
+| 10 | `@directus/system-data` package.json'da yok; npm'in yukari tasimasina guveniyordu | Sunucunun kullandigi kopyadan (`directus -> @directus/api -> @directus/system-data`) cozuluyor | `yetkiler.test.mjs` (13 onerilen satir) |
+
+**Bozarak dogrulama (Q5):** #3 (akisin `delete` satirlari kaldirildi -> 2 test kirmizi) ve #1 (pasif akisi acma kaldirildi -> 1 test kirmizi); geri alindi.
 
 ---
 
@@ -254,7 +357,7 @@ Ekran goruntusunde yayin listesinin yan panelinde "Akislar" bolumu ve "Yayimla" 
 | L17 | Paylasim baglantilari (shares) ve panolar editorde yok | Paylasim icerigi giris yapmadan disariya acar; panolar kullanilmiyor | ben karar verdim | hayir |
 | L18 | Editor sabit sayfa acamaz/silemez | Anahtarlari sitenin kodu kullanir | ben karar verdim | hayir |
 | L19 | Onay ve anonimlestirme zamani Directus akisiyla (veritabani tetikleyicisi degil) | `db/` degistirilemez; VERI_MODELI 6.3 akis oneriyor | ben karar verdim | hayir |
-| L20 | Akis yalniz bos onay zamanini doldurur; `yayin_tarihi`'ne dokunmaz | Yuk yalnizca degisen alanlari tasir; tarihi doldurmak zamanlanmis yayini bozabilirdi | ben karar verdim | hayir |
+| L20 | Onay/anonimlestirme bilgisini yalniz akis yazar (istemci degeri silinir); `yayin_tarihi`ne dokunulmaz | Editor tum alanlara yazabildigi icin (lisanssiz alan kisiti yok) aksi halde sahtelenebilirdi; yuk yalnizca degisen alanlari tasidigi icin tarihi doldurmak zamanlanmis yayini bozabilirdi. Sonuc: `durum = yayinda` iceren her kayit onay zamanini yeniler | ben karar verdim | hayir |
 | L21 | Akislarda `accountability: 'activity'` | Calisma izi kalir, yukun kopyasi kalmaz | ben karar verdim | hayir |
 | L22 | "Yayimla" yalniz kuyruga is ekler; derleme gorevi yazilmadi | Sunucu/deploy kapsam disi | ben karar verdim | hayir |
 
@@ -262,11 +365,17 @@ Ekran goruntusunde yayin listesinin yan panelinde "Akislar" bolumu ve "Yayimla" 
 
 ## Veri modeli onerileri
 
-- Henuz yok.
+- Sema degisikligi gerektiren bir bulgu yok; panel `db/schema.sql`'e dokunmadan kuruldu.
+- Kucuk oneri (sema degil, akis): karar `slug`'i elle yaziliyor (not: "kunyeden uretin"). Ileride bir akis kunyeden (`mahkeme`, `esas_no`, `karar_no`) uretebilir; veritabaninda `ic.slug_tr()` zaten var. Kazanc: yazim hatasi olmaz. Bedel: 1 akis daha (lisanssiz sinir 5; su an 3).
 
 ## Kapsam disi notlari
 
-- Henuz yok.
+- **Sitenin PostgreSQL'den okumasi:** `site/src/lib/veri.ts` `tablolariYukle()` hala mock'u okuyor. Siradaki is: salt okuma yetkili bir veritabani kullanicisi + tablolar.ts'deki sutunlarla SELECT. Panelde girilen icerigin sitede gorunmesi buna bagli.
+- **Derleme gorevi:** "Yayimla"nin kuyruga ekledigi isi alip `site/`'i derleyen sunucu gorevi (systemd timer) yazilmadi.
+- **Turkce hata mesaji eklentisi** (VERI_MODELI 6.2): Directus kendi kurallarimizin (Turkce ceviri zorunlu, iki seviye agac) mesajini editore "An unexpected error occurred." diye gosteriyor. Kucuk bir Directus eklentisi onerilir; bu gece yazilmadi.
+- **E-posta (SMTP):** sifre sifirlama ve davetler icin gerekir; ayarlanmadi.
+- **Canli `.env`:** `PUBLIC_URL`, guclu parolalar, `LICENSE_KEY`; dosya depolama (yuklenen gorseller `panel/uploads/`) yedege dahil edilmeli.
+- **Dosya yukleme sinirlari:** gorsel boyutu/turu sinirlamasi (inceleme 3: "en uzun kenar 2000 px") ayarlanmadi.
 
 ---
 
@@ -278,6 +387,7 @@ Ekran goruntusunde yayin listesinin yan panelinde "Akislar" bolumu ve "Yayimla" 
 | Q2 | 21/21 | Gelistirme ornegi `npm run sifirla` ile temizlendi (sabahki deney artiklari gitti) |
 | Q3 | 33/33 | |
 | Q4 | 40/40 | Gelistirme ornegi sifirlandi; ekran goruntusuyle "Yayimla" dugmesi kontrol edildi |
+| Q5 | 44/44 | `db/test/calistir.sh` (PG16) Q0'da gecti; inceleme duzeltmelerinden sonra gelistirme ornegi yeniden sifirlandi |
 
 **Bozarak dogrulanan:**
 | Test | Nasil bozuldu | Sonuc |
@@ -291,7 +401,12 @@ Ekran goruntusunde yayin listesinin yan panelinde "Akislar" bolumu ve "Yayimla" 
 
 | `akislar.test.mjs` (onay) | Yayin akisindan `return: '$last'` kaldirildi | kirmizi, geri alindi |
 
-- Son dogrulama: Q4 sonu, 12 Ekim 2026 (Europe/Istanbul): panel testleri 40/40 yesil.
+| `akislar.test.mjs` (sahte onay, Q5) | Akistaki `delete yuk.onay_zamani/onaylayan` kaldirildi | iki test kirmizi, geri alindi |
+| `akislar.test.mjs` (pasif akis, Q5) | Pasif akisi `status: active` ile acma kaldirildi | kirmizi, geri alindi |
+
+**Toplam:** 44 panel testi (kurulum 5, yapilandirma 16, yetkiler 12, akislar 11), hepsi her calistirmada sifirdan kurulan ayri bir Directus'a karsi.
+
+- Son dogrulama: Q5 sonu, 12 Ekim 2026 09:45 (Europe/Istanbul): panel testleri 44/44 yesil.
 
 ---
 
@@ -302,6 +417,7 @@ Ekran goruntusunde yayin listesinin yan panelinde "Akislar" bolumu ve "Yayimla" 
 - **Q2 Koleksiyon ve alan yapilandirmasi:** Panel kod olarak yapilandirildi: Turkce menu ve klasorler, 14 ana koleksiyon, 266 alanin Turkce etiketi/arayuzu/dogrulamasi, 25 ceviri ve iliski alani, varsayilan listeler. Lisans kotasi hesaplanarak uygulaniyor; ceviri ve ara tablolar kotaya girmiyor. `npm run kur` tek komutta kurup yapilandiriyor.
 - **Q3 Roller ve yetkiler:** Editor rolu (icerikte tam erisim, sistemde erisim yok, 2FA zorunlu) uygulandi; Yazar rolu (yalniz kendi icerigi, yayina alamaz) tanimlandi ama lisans bekliyor. Lisanssizken paneli kilitleyecek kural gonderilmeden duruluyor. Yeniden calistirmada yetki satirlarinin cogalmasi hatasi testte bulunup duzeltildi.
 - **Q4 Akislar:** Uc Directus akisi eklendi: yayina alinca onay bilgisi, karar anonimlestirilince zaman/kisi otomatik doluyor (veritabani kurallari boylece panelden saglanabiliyor); "Yayimla" dugmesi derleme kuyruguna is ekliyor.
+- **Q5 Son gozden gecirme:** Bagimsiz kod incelemesinin 10 bulgusu da duzeltildi: onay bilgisinin sahtelenmesi, pasif akis/koleksiyonun yeniden acilmamasi, panel acik kontrolunun gec kalmasi, Windows'ta PostgreSQL soket ayari, .env/kume parola uyusmazligi, ornek verinin yarida kalmasi, yetkilerin atomik olmayan yenilenmesi, atlanan akisin raporlanmamasi, beyan edilmemis paket. Sabah ozeti ve yonetici ozeti yazildi.
 
 ---
 
@@ -331,3 +447,11 @@ Ekran goruntusunde yayin listesinin yan panelinde "Akislar" bolumu ve "Yayimla" 
 | 20 | `git diff --cached --name-status` | Hazirlik alaninda yalniz Q4 dosyalari oldugunu kontrol etti. |
 | 21 | `git commit -m "Onay ve yayimlama akislarini ekle" -m "..."` | Q4 commit'i. |
 | 22 | `git push origin panel-gece` | Q4'u uzaga gonderdi. |
+| 23 | (beceri) `code-review high ebdb1a4...HEAD` | Bagimsiz inceleme; uc nokta: dalin ayrildigi noktadan bu yana yalniz bu dalin degisiklikleri (yalniz okuma). |
+| 24 | `git diff --no-index --stat <yedek> <dosya>` | Bozarak dogrulamada gecici degisikliklerin boyutunu gordu (depoya dokunmaz). |
+| 25 | `git add docs/panel-gece-calismasi.md panel/betikler panel/yapilandirma panel/test` | Q5 dosyalarini acik yollarla hazirlik alanina koydu. |
+| 26 | `git diff --cached --name-status` | Hazirlik alaninda yalniz Q5 dosyalari oldugunu kontrol etti. |
+| 27 | `git commit -m "Inceleme bulgularini duzelt ve panel raporunu yaz" -m "..."` | Q5 commit'i. |
+| 28 | `git push origin panel-gece` | Q5'i uzaga gonderdi. |
+| 29 | `git log --oneline ebdb1a4..HEAD` | Hash listesini cikardi (yalniz okuma). |
+| 30 | `git add docs/panel-gece-calismasi.md`, `git commit -m "Panel belgesine commit listesini ekle" -m "..."`, `git push origin panel-gece` | Hash listesini ayri bir belge commit'iyle ekleyip gonderdi. |

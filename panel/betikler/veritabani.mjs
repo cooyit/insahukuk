@@ -29,7 +29,8 @@ export function baslat(env) {
   if (calisiyorMu(env)) return;
   calistir(pgArac(env, 'pg_ctl'), [
     '-D', KUME, '-w', '-l', join(VERI, 'postgres.log'),
-    '-o', `-p ${env.DB_PORT} -c listen_addresses=127.0.0.1 -c unix_socket_directories=''`,
+    // Bos deger tirnaksiz: pg_ctl -o'yu kabukla (Windows'ta cmd.exe) iletir; cmd tek tirnagi harf sayar.
+    '-o', `-p ${env.DB_PORT} -c listen_addresses=127.0.0.1 -c unix_socket_directories=`,
     'start',
   ]);
 }

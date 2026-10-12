@@ -13,8 +13,14 @@ export const KUME = join(VERI, 'kume');
 export const ENV_DOSYASI = join(PANEL, '.env');
 
 // .env'i (yoksa .env.ornek'ten) uretir; __RASTGELE__ yerlerine her biri icin ayri rastgele deger.
+// Kume (.veri) eski parolalarla durdugu halde .env silinmisse yeni parola uretmek baglantiyi bozar;
+// o durumda acik bir mesajla durur (kod incelemesi).
 export function envHazirla() {
   if (existsSync(ENV_DOSYASI)) return false;
+  if (existsSync(KUME)) {
+    throw new Error('panel/.env yok ama panel/.veri (veritabani kumesi) duruyor; kume eski parolalari kullaniyor. '
+      + 'Ya .env yedeginizi geri koyun ya da sifirdan baslamak icin once "npm run db:durdur" calistirip panel/.veri klasorunu silin.');
+  }
   const ornek = readFileSync(join(PANEL, '.env.ornek'), 'utf8');
   writeFileSync(ENV_DOSYASI, ornek.replace(/__RASTGELE__/g, () => randomBytes(18).toString('base64url')));
   return true;

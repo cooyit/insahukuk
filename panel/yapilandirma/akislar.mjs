@@ -10,9 +10,14 @@
 //
 // Betikler Directus'un yalitilmis ortaminda calisir (exec islemi); yalnizca yuk ve oturum bilgisi gorur.
 
+// Onay ve anonimlestirme bilgisi istemciden ALINMAZ: editorun yetkisi tum alanlari kapsadigi icin
+// (lisanssiz katmanda alan kisitlamasi yok) gonderilen deger silinir ve yalnizca bu akis yazar.
+// Boylece "kim, ne zaman onayladi" sahtelenemez (kod incelemesinde bulundu).
 const YAYIN_ONAYI = `module.exports = async function (data) {
   const yuk = { ...data.$trigger.payload };
-  if (yuk.durum === 'yayinda' && !yuk.onay_zamani) {
+  delete yuk.onay_zamani;
+  delete yuk.onaylayan;
+  if (yuk.durum === 'yayinda') {
     yuk.onay_zamani = new Date().toISOString();
     yuk.onaylayan = data.$accountability?.user ?? null;
   }
@@ -23,12 +28,16 @@ const KARAR_ONAYI = `module.exports = async function (data) {
   const yuk = { ...data.$trigger.payload };
   const kim = data.$accountability?.user ?? null;
   const simdi = new Date().toISOString();
-  if (yuk.durum === 'yayinda' && !yuk.onay_zamani) {
+  delete yuk.onay_zamani;
+  delete yuk.onaylayan;
+  delete yuk.anonimlestirme_zamani;
+  delete yuk.anonimlestiren;
+  if (yuk.durum === 'yayinda') {
     yuk.onay_zamani = simdi;
     yuk.onaylayan = kim;
   }
   // Semada: anonimlestirildi = (anonimlestirme_zamani IS NOT NULL). Isaret ve zaman birlikte degisir.
-  if (yuk.anonimlestirildi === true && !yuk.anonimlestirme_zamani) {
+  if (yuk.anonimlestirildi === true) {
     yuk.anonimlestirme_zamani = simdi;
     yuk.anonimlestiren = kim;
   }

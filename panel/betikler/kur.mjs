@@ -1,6 +1,7 @@
 // Yerel paneli sifirdan ya da kaldigi yerden kurar (tekrar calistirilabilir):
 //   1. .env yoksa uretir   2. PostgreSQL kumesini baslatir   3. rol ve veritabanini acar
-//   4. directus bootstrap (Directus tablolari + ilk yonetici)   5. db/schema.sql + db/ornek_veri.sql
+//   4. directus bootstrap (Directus tablolari + ilk yonetici)   5. db/schema.sql   6. db/ornek_veri.sql
+//   7. Directus'u (gerekirse gecici) acip panel yapilandirmasini uygular
 // Sira db/README.md "Kurulum sirasi" ile ayni: sema directus_users/directus_files'a baglandigi icin
 // once Directus tablolari olusmali.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -44,39 +45,62 @@ function rolVeVeritabani(env) {
   }
 }
 
-function semaYukle(env) {
-  const kullanici = { kullanici: env.DB_USER, sifre: env.DB_PASSWORD };
-  if (sorgu(env, env.DB_DATABASE, "SELECT to_regclass('public.kisi') IS NOT NULL", kullanici.kullanici, kullanici.sifre) === 't') return false;
-  psql(env, {
-    veritabani: env.DB_DATABASE,
-    ...kullanici,
-    argumanlar: ['-f', join(KOK, 'db', 'schema.sql'), '-f', join(KOK, 'db', 'ornek_veri.sql')],
-  });
-  return true;
+function uygulamaSorgusu(env, sql) {
+  return sorgu(env, env.DB_DATABASE, sql, env.DB_USER, env.DB_PASSWORD);
 }
 
+function dosyaYukle(env, dosya) {
+  psql(env, { veritabani: env.DB_DATABASE, kullanici: env.DB_USER, sifre: env.DB_PASSWORD, argumanlar: ['-f', join(KOK, 'db', dosya)] });
+}
+
+// Sema ve ornek veri ayri ayri denetlenir: ikisi ayri islemle (BEGIN/COMMIT) yuklenir; ornek veri
+// hata verirse bir sonraki calistirmada yine yuklenmeli (kod incelemesi). ornek_veri.sql tek islem
+// oldugu icin ya tamami girer ya hicbiri; site_ayar'in bos olmasi "hic yuklenmedi" demektir.
+function semaYukluMu(env) {
+  return uygulamaSorgusu(env, "SELECT to_regclass('public.kisi') IS NOT NULL") === 't';
+}
+
+function veriYukle(env) {
+  const sonuc = { sema: false, ornekVeri: false };
+  if (!semaYukluMu(env)) {
+    dosyaYukle(env, 'schema.sql');
+    sonuc.sema = true;
+  }
+  if (uygulamaSorgusu(env, 'SELECT count(*) FROM site_ayar') === '0') {
+    dosyaYukle(env, 'ornek_veri.sql');
+    sonuc.ornekVeri = true;
+  }
+  return sonuc;
+}
+
+// Directus tablolari (bootstrap) dahil veritabanini hazirlar; sema icin calisan bir Directus gerekmez.
 export function kur(env) {
   baslat(env);
   rolVeVeritabani(env);
   // bootstrap tekrar calistirilabilir: tablolar varsa yalnizca eksik goc (migration) uygular.
   directus(env, ['bootstrap']);
-  return semaYukle(env);
+  return veriYukle(env);
 }
 
 // Yapilandirma REST ile uygulanir, yani Directus calisiyor olmali: panel zaten aciksa onu kullanir,
 // degilse gecici olarak acip kapatir. Directus yeni tablolari ancak acilista gordugu icin (db/README.md)
-// sema yuklendikten sonra acilmasi da gerekir.
+// sema yuklenecekse panel KAPALI olmali; bu, sema yuklenmeden ONCE denetlenir (kod incelemesi: sonra
+// denetlenince ikinci calistirma kontrolu atliyordu).
 export async function kurVeYapilandir(env) {
-  const semaYuklendi = kur(env);
   const { ayaktaMi, directusBaslat } = await import('./sunucu.mjs');
   const { yapilandir } = await import('./yapilandir.mjs');
   const acik = await ayaktaMi(env.PUBLIC_URL);
-  if (acik && semaYuklendi) {
-    throw new Error('Sema yeni yuklendi ama panel zaten acik: Directus yeni tablolari gormez. Paneli kapatip tekrar "npm run kur" calistirin.');
+  if (acik) {
+    baslat(env);
+    rolVeVeritabani(env);
+    if (!semaYukluMu(env)) {
+      throw new Error('Panel acik ama sema henuz yuklu degil: Directus yeni tablolari gormez. Paneli kapatip "npm run kur" calistirin.');
+    }
   }
+  const yuklenen = kur(env);
   const sunucu = acik ? null : await directusBaslat(env);
   try {
-    return { semaYuklendi, rapor: await yapilandir(env) };
+    return { yuklenen, rapor: await yapilandir(env) };
   } finally {
     sunucu?.kapat();
   }
@@ -85,12 +109,10 @@ export async function kurVeYapilandir(env) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const yeni = envHazirla();
   const env = envOku();
-  const { semaYuklendi, rapor } = await kurVeYapilandir(env);
+  const { yuklenen, rapor } = await kurVeYapilandir(env);
+  const { raporuYaz } = await import('./yapilandir.mjs');
   console.log(yeni ? '.env uretildi (yonetici parolasi .env icinde: ADMIN_PASSWORD).' : '.env mevcut.');
-  console.log(semaYuklendi ? 'Sema ve ornek veri yuklendi.' : 'Sema zaten yuklu; dokunulmadi.');
-  const sinir = rapor.lisans.koleksiyonSiniri === -1 ? 'sinirsiz' : rapor.lisans.koleksiyonSiniri;
-  console.log(`Yapilandirma: lisans ${rapor.lisans.ad}, koleksiyon ${rapor.lisans.kullanilanKoleksiyon}/${sinir}, alan ${rapor.alanSayisi}, iliski ${rapor.iliskiSayisi}`);
-  if (rapor.lisansBekleyen.length) console.log(`Lisans bekleyen koleksiyonlar: ${rapor.lisansBekleyen.join(', ')}`);
-  console.log(`Roller: ${rapor.roller.join(', ') || '-'}${rapor.lisansBekleyenYetki.length ? `; lisans bekleyen: ${rapor.lisansBekleyenYetki.join(', ')}` : ''}`);
+  console.log(`Sema: ${yuklenen.sema ? 'yuklendi' : 'zaten yuklu'}; ornek veri: ${yuklenen.ornekVeri ? 'yuklendi' : 'zaten yuklu'}.`);
+  raporuYaz(rapor);
   console.log(`Paneli baslatmak icin: npm run panel  (${env.PUBLIC_URL})`);
 }

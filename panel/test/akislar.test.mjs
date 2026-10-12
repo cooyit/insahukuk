@@ -81,6 +81,59 @@ describe('kural: karar anonimlestirme isareti ve zamani birlikte degisir (verita
   });
 });
 
+describe('kural: onay ve anonimlestirme bilgisi sahtelenemez (yalniz akis yazar)', () => {
+  it('editorun gonderdigi onay zamani ve onaylayan yok sayilir; gercek onaylayan yazilir', async () => {
+    const editor = await editorGirisi();
+    const { govde: yon } = await istek(yonetici, 'GET', '/users/me?fields=id');
+    const { govde: ben } = await istek(editor, 'GET', '/users/me?fields=id');
+    const { durum, govde } = await istek(editor, 'POST', '/items/yayin?fields=onay_zamani,onaylayan', {
+      tur: 'duyuru', durum: 'yayinda', yayin_tarihi: '2026-10-01T09:00:00+03:00',
+      onay_zamani: '2020-01-01T00:00:00Z', onaylayan: yon.data.id,
+      ceviriler: [{ dil: 'tr', slug: 'sahte-onay', baslik: 'Sahte Onay' }],
+    });
+    expect(durum).toBe(200);
+    expect(govde.data.onaylayan).toBe(ben.data.id);
+    expect(govde.data.onay_zamani.startsWith('2020')).toBe(false);
+  });
+
+  it('taslakta gonderilen onay zamani silinir', async () => {
+    const { govde } = await istek(yonetici, 'POST', '/items/yayin?fields=onay_zamani,onaylayan', {
+      tur: 'duyuru', durum: 'taslak', onay_zamani: '2020-01-01T00:00:00Z',
+      ceviriler: [{ dil: 'tr', slug: 'taslak-sahte-onay', baslik: 'Taslak Sahte Onay' }],
+    });
+    expect(govde.data).toEqual({ onay_zamani: null, onaylayan: null });
+  });
+
+  it('isaret olmadan gonderilen anonimlestirme zamani silinir (karar anonim sayilmaz)', async () => {
+    const { durum, govde } = await istek(yonetici, 'POST', '/items/karar?fields=anonimlestirildi,anonimlestirme_zamani', {
+      mahkeme_id: 4, karar_tarihi: '2025-03-03', slug: 'sahte-anonim', konu: 'Sahte anonim (ÖRNEK)', durum: 'taslak',
+      anonimlestirme_zamani: '2020-01-01T00:00:00Z',
+    });
+    expect(durum).toBe(200);
+    expect(govde.data).toEqual({ anonimlestirildi: false, anonimlestirme_zamani: null });
+  });
+});
+
+describe('kural: yeniden calistirma pasiflesmis akis ve koleksiyonu tekrar acar', () => {
+  it('kapatilan onay akisi ve pasif koleksiyon yapilandirmayla yeniden aktif olur', async () => {
+    const { url, eposta, sifre } = panel();
+    const { govde: akis } = await istek(yonetici, 'GET', '/flows?filter[name][_eq]=Yayın onayı&fields=id');
+    await istek(yonetici, 'PATCH', `/flows/${akis.data[0].id}`, { status: 'inactive' });
+    await istek(yonetici, 'PATCH', '/collections/yonlendirme', { meta: { status: 'inactive' } });
+
+    const { yapilandir } = await import('../betikler/yapilandir.mjs');
+    const rapor = await yapilandir({ PUBLIC_URL: url, ADMIN_EMAIL: eposta, ADMIN_PASSWORD: sifre });
+    expect(rapor.akislar).toContain('Yayın onayı');
+
+    const { govde: a } = await istek(yonetici, 'GET', `/flows/${akis.data[0].id}?fields=status`);
+    expect(a.data.status).toBe('active');
+    const { govde: k } = await istek(yonetici, 'GET', '/collections/yonlendirme');
+    expect(k.data.meta.status).toBe('active');
+    const { govde: l } = await istek(yonetici, 'GET', '/license');
+    expect(l.data.status).toBe('active');
+  });
+});
+
 describe('kural: "Yayimla" dugmesi derleme kuyruguna is ekler', () => {
   it('editor dugmeye basinca kuyrukta, isteyeni kendisi olan bir is olusur', async () => {
     const editor = await editorGirisi();
