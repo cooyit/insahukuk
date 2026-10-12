@@ -5,7 +5,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
 export const DIST = join(import.meta.dirname, '..', '..', 'dist');
-export const SITE = 'https://www.example.com';
+export const SITE = 'https://www.insahukuk.test';
 
 export interface Sayfa {
   yol: string; // '/ekip/ayse-yilmaz'

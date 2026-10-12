@@ -58,7 +58,11 @@ function aktifMi(menuYolu: string): boolean {
 
     <header class="ust">
       <div class="kap ust-kap">
-        <a class="site-adi" href={yollar[dil].anaSayfa}>{siteAdi}</a>
+        {/* Logo yer tutucu (nihai logo tasarlaniyor). Alt metin bos: baglantinin adi yanindaki resmi unvan. */}
+        <a class="site-adi" href={yollar[dil].anaSayfa}>
+          <img src="/logo.svg" alt="" width="168" height="48" />
+          <span>{siteAdi}</span>
+        </a>
         <nav aria-label={m.anaMenu}>
           <ul class="menu">
             {

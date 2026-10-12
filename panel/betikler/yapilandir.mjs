@@ -4,13 +4,15 @@
 // Lisans: once /license okunur. Yapilandirilmis koleksiyon sayisi siniri asmayacak sekilde uygulanir;
 // sigmayan koleksiyonlar "lisans bekliyor" diye raporlanir. Sinir asilirsa Directus kurulumu
 // kilitler (icerik API'si kapanir), bu yuzden sinir burada once hesaplanir.
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { alanMeta, OZEL } from '../yapilandirma/alanlar.mjs';
 import { BIRE_COK, CEVIRILER, COKA_COK } from '../yapilandirma/iliskiler.mjs';
 import { CEVIRI_SABLONLARI, KLASORLER, KOLEKSIYONLAR, META_ALMAYANLAR } from '../yapilandirma/koleksiyonlar.mjs';
 import { ozelKuralMi, POLITIKALAR, ROLLER } from '../yapilandirma/yetkiler.mjs';
 import { AKISLAR } from '../yapilandirma/akislar.mjs';
-import { envOku } from './ortak.mjs';
+import { envOku, KOK } from './ortak.mjs';
 
 export async function baglan(url, eposta, sifre) {
   const giris = await fetch(`${url}/auth/login`, {
@@ -20,7 +22,7 @@ export async function baglan(url, eposta, sifre) {
   });
   if (!giris.ok) throw new Error(`Directus girisi basarisiz (${giris.status})`);
   const token = (await giris.json()).data.access_token;
-  return async function api(yontem, yol, govde, { hataSerbest = false } = {}) {
+  async function api(yontem, yol, govde, { hataSerbest = false } = {}) {
     const yanit = await fetch(`${url}${yol}`, {
       method: yontem,
       headers: { authorization: `Bearer ${token}`, ...(govde ? { 'content-type': 'application/json' } : {}) },
@@ -30,7 +32,15 @@ export async function baglan(url, eposta, sifre) {
     const veri = metin ? JSON.parse(metin) : null;
     if (!yanit.ok && !hataSerbest) throw new Error(`${yontem} ${yol} -> ${yanit.status}: ${metin.slice(0, 500)}`);
     return { durum: yanit.status, veri: veri?.data, hata: veri?.errors };
+  }
+  // Dosya yukleme (multipart): icerik turunu tarayici gibi fetch kendisi koyar.
+  api.yukle = async (yol, form) => {
+    const yanit = await fetch(`${url}${yol}`, { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: form });
+    const metin = await yanit.text();
+    if (!yanit.ok) throw new Error(`POST ${yol} -> ${yanit.status}: ${metin.slice(0, 500)}`);
+    return JSON.parse(metin).data;
   };
+  return api;
 }
 
 // --- koleksiyonlar ---
@@ -293,10 +303,25 @@ async function akislariUygula(api, rapor) {
 
 // --- genel ayarlar ---
 
+// Panel logosu sitenin isaretiyle ayni dosya (site/public/favicon.svg): yer tutucu, nihai logo
+// gelince yalnizca o dosya degisir. Ayni adla yuklenmisse yeniden yuklenmez.
+const PANEL_LOGOSU = { yol: join(KOK, 'site', 'public', 'favicon.svg'), ad: 'insa-panel-logosu.svg' };
+
+async function logoYukle(api) {
+  const var_ = (await api('GET', `/files?filter[filename_download][_eq]=${PANEL_LOGOSU.ad}&fields=id&limit=1`)).veri;
+  if (var_.length) return var_[0].id;
+  const form = new FormData();
+  form.append('title', 'İNŞA panel logosu (yer tutucu)');
+  form.append('file', new Blob([readFileSync(PANEL_LOGOSU.yol)], { type: 'image/svg+xml' }), PANEL_LOGOSU.ad);
+  return (await api.yukle('/files', form)).id;
+}
+
 async function ayarlariUygula(api) {
   await api('PATCH', '/settings', {
-    project_name: 'Büro Yönetim Paneli',
+    project_name: 'İNŞA Yönetim Paneli',
     project_descriptor: 'İçerik yönetimi',
+    project_color: '#1d4a72',
+    project_logo: await logoYukle(api),
     default_language: 'tr-TR',
   });
 }

@@ -4,6 +4,7 @@
 import { envHazirla, envOku, psql } from '../betikler/ortak.mjs';
 import { kur } from '../betikler/kur.mjs';
 import { directusBaslat } from '../betikler/sunucu.mjs';
+import { baslat } from '../betikler/veritabani.mjs';
 import { yapilandir } from '../betikler/yapilandir.mjs';
 
 let sunucu;
@@ -18,7 +19,8 @@ export async function setup({ provide }) {
     LOG_LEVEL: 'warn',
   };
 
-  // Temiz baslangic: onceki test veritabani silinir.
+  // Temiz baslangic: onceki test veritabani silinir. Kume kapaliysa (npm run db:durdur) once acilir.
+  baslat(env);
   psql(env, { veritabani: 'postgres', argumanlar: ['-c', 'DROP DATABASE IF EXISTS insa_test WITH (FORCE)'] });
   kur(env);
   sunucu = await directusBaslat(env);

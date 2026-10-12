@@ -42,9 +42,14 @@ describe('kural: lisans siniri asilmaz (asilirsa Directus kurulumu kilitler)', (
 });
 
 describe('kural: panel Turkce ve menude yalnizca ana koleksiyonlar', () => {
-  it('panelin varsayilan dili tr-TR', async () => {
+  it('panelin varsayilan dili tr-TR; adi ve (yer tutucu) logosu buronun', async () => {
     const { govde } = await istek(token, 'GET', '/settings');
     expect(govde.data.default_language).toBe('tr-TR');
+    expect(govde.data.project_name).toBe('İNŞA Yönetim Paneli');
+    expect(govde.data.project_logo).toBeTruthy();
+    // Yapilandirma iki kez calisti (hazirlik.mjs); logo bir kez yuklenmis olmali.
+    const { govde: dosyalar } = await istek(token, 'GET', '/files?filter[filename_download][_eq]=insa-panel-logosu.svg&fields=id');
+    expect(dosyalar.data.length).toBe(1);
   });
 
   it('ana koleksiyonlarin Turkce adi ve klasoru var; ceviri tablolari menude yok (meta almaz)', async () => {

@@ -89,13 +89,15 @@ describe('kural: iletisim formu (KVKK, HTML dogrulama, sahte "gonderildi" yok)',
   });
 });
 
-describe('kural: pop-up, sabit WhatsApp butonu, video hero, logo/odul yok (docs/inceleme 6.2)', () => {
-  it('WhatsApp baglantisi, dialog, video ve logo gorseli yok', () => {
+describe('kural: pop-up, sabit WhatsApp butonu, video hero, muvekkil/firma logosu, odul yok (docs/inceleme 6.2)', () => {
+  it('WhatsApp baglantisi, dialog, video ve buronun kendisi disinda logo gorseli yok', () => {
     for (const s of sayfalar) {
       expect(s.html, s.yol).not.toMatch(/wa\.me|whatsapp/i);
       expect(s.html, s.yol).not.toMatch(/<dialog\b|role="dialog"|role="alertdialog"/);
       expect(s.html, s.yol).not.toMatch(/<video\b|autoplay/);
-      expect(etiketler(s.html, 'img').filter((e) => /logo/i.test(e)), s.yol).toEqual([]);
+      // Yalniz buronun kendi logosu (/logo.svg) serbest; muvekkil/firma logosu reklam yasagi kapsaminda.
+      const yabanciLogolar = etiketler(s.html, 'img').filter((e) => /logo/i.test(e) && nitelik(e, 'src') !== '/logo.svg');
+      expect(yabanciLogolar, s.yol).toEqual([]);
     }
   });
 

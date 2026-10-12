@@ -6,7 +6,7 @@ test.describe('kural: JS yoksa form gorunmez (kisisel veri var olmayan adrese gi
   test('form gizli; adres, telefon ve e-posta gorunur', async ({ page }) => {
     await page.goto('/iletisim');
     await expect(page.getByRole('button', { name: 'Gönder' })).toBeHidden();
-    await expect(page.locator('main').getByRole('link', { name: 'info@ornek.av.tr' })).toBeVisible();
+    await expect(page.locator('main').getByRole('link', { name: 'info@insahukuk.test' })).toBeVisible();
     await expect(page.locator('main').getByText('Örnek Mah. Örnek Cad. No: 1, Şişli / İstanbul')).toBeVisible();
   });
 });

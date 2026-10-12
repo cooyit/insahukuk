@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 196 56" width="196" height="56">
+  <!-- Yer tutucu logo (nihai logo tasarlaniyor). Isaret: alinlik, uc sutun, kaide (adliye cephesi;
+       "insa" ile hukuk cagrisimi). Yazi sistem fontuyla; dis font istegi yok. -->
+  <g fill="#1d4a72">
+    <path d="M4 18 26 5l22 13z"/>
+    <rect x="8" y="22" width="6" height="21" rx="1"/>
+    <rect x="23" y="22" width="6" height="21" rx="1"/>
+    <rect x="38" y="22" width="6" height="21" rx="1"/>
+    <rect x="4" y="45" width="44" height="5" rx="1"/>
+  </g>
+  <text x="60" y="33" fill="#1d4a72" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-size="27" font-weight="700" letter-spacing="2">İNŞA</text>
+  <text x="61" y="50" fill="#50555e" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-size="11" font-weight="600" letter-spacing="6.5">HUKUK</text>
+</svg>

@@ -223,7 +223,7 @@ describe('kural: CMS\'den gelen dis baglanti yalnizca gecerli https adresiyse ku
 describe('site ayarlari', () => {
   it('buro unvani tek yerden (site_ayar) gelir; baro bilgisi aktif avukatlardan turetilir', async () => {
     const ayar = await siteAyariGetir('tr', s);
-    expect(ayar.resmiUnvan).toBe('Yılmaz Avukatlık Bürosu');
+    expect(ayar.resmiUnvan).toBe('İnce Şafak Avukatlık Bürosu');
     expect(ayar.barolar).toEqual(['İstanbul Barosu']);
     expect(ayar.altBilgiNotu).toMatch(/^Bu site bilgilendirme amaçlıdır/);
   });

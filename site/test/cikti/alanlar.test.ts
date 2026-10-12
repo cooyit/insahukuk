@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { distVarMi, etiketler, gorunenMetin, htmlSayfalari, nitelik, yolVarMi, type Sayfa } from './dist';
+import { distVarMi, etiketler, gorunenMetin, htmlSayfalari, nitelik, SITE, yolVarMi, type Sayfa } from './dist';
 
 let sayfalar: Sayfa[] = [];
 const sayfa = (yol: string) => sayfalar.find((s) => s.yol === yol)!;
@@ -53,7 +53,7 @@ describe('kural: iki seviyeli agac; duz slug, agac breadcrumb\'da', () => {
 
 describe('kural: arabuluculuk sayfasi bilgilendirici', () => {
   it('TR ve EN sayfa var, birbirine hreflang ile bagli', () => {
-    expect(sayfa('/arabuluculuk').html).toContain('hreflang="en" href="https://www.example.com/en/mediation"');
-    expect(sayfa('/en/mediation').html).toContain('hreflang="tr" href="https://www.example.com/arabuluculuk"');
+    expect(sayfa('/arabuluculuk').html).toContain(`hreflang="en" href="${SITE}/en/mediation"`);
+    expect(sayfa('/en/mediation').html).toContain(`hreflang="tr" href="${SITE}/arabuluculuk"`);
   });
 });

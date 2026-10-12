@@ -20,7 +20,7 @@ describe('kural: her sayfanin footer bilgileri tam', () => {
       const f = footer(s);
       const metin = gorunenMetin(f);
       const en = s.yol === '/en' || s.yol.startsWith('/en/');
-      expect(metin, s.yol).toContain('Yılmaz Avukatlık Bürosu');
+      expect(metin, s.yol).toContain('İnce Şafak Avukatlık Bürosu');
       expect(metin, s.yol).toContain('Şişli');
       expect(f, s.yol).toMatch(/href="tel:\+90/);
       expect(f, s.yol).toMatch(/href="mailto:[^"]+@/);
