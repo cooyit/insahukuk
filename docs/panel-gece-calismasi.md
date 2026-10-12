@@ -421,6 +421,23 @@ Ekran goruntusunde yayin listesinin yan panelinde "Akislar" bolumu ve "Yayimla" 
 
 ---
 
+## Commit listesi (hash'li)
+
+Hash commit'ten once bilinemedigi icin bu liste is bitince ayri bir belge commit'iyle eklendi; bu listeyi ekleyen son commit ("Panel belgesine commit listesini ekle") listede yok.
+
+| Hash | Paket | Baslik |
+|---|---|---|
+| `f0c9bf6` | Q0 | Panel calismasi belgesini ac |
+| `57a50c7` | Q1 | Directus yerel kurulumunu ekle |
+| `527ec7f` | Q2 | Panel yapilandirmasini kod olarak ekle |
+| `afb10e4` | Q3 | Editor ve yazar rollerini ekle |
+| `89f3a8d` | Q4 | Onay ve yayimlama akislarini ekle |
+| `843b4bb` | Q5 | Inceleme bulgularini duzelt ve panel raporunu yaz |
+
+Dalin tabani: `ebdb1a4` (site calismasi dali `worktree-site-gece`'nin ucu).
+
+---
+
 ## Calistirilan git komutlari
 
 | # | Komut | Aciklama |
